@@ -227,34 +227,41 @@
     return canvas;
   }
 
+  // มือถือ: สแกนหน้าเดียวจบ — รอจนเจอใบหน้าแรกที่ชัด แล้วประเมินครั้งเดียว (ไม่วนรัว ๆ)
   async function detectLoop() {
     if (!scanning) return;
-    if (!detectBusy && (Date.now() - lastMismatchAt > 1500)) {
+    if (!detectBusy) {
       detectBusy = true;
       try {
         const canvas = videoToCanvas();
         if (canvas) {
           const det = await faceapi.detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 })).withFaceLandmarks().withFaceDescriptor();
           if (det && det.detection.score >= 0.5) {
+            // เจอใบหน้าแล้ว → หยุดสแกน + ประเมินครั้งเดียว
+            scanning = false;
+            document.getElementById('inapp-scanning-badge').classList.add('hidden');
+            stopCamera();
             const distance = faceapi.euclideanDistance(det.descriptor, myFaceDescriptor);
             if (distance <= 0.45) {
-              scanning = false;
               setStatus("ยืนยันตัวตนสำเร็จ!", 'text-emerald-400');
-              document.getElementById('inapp-scanning-badge').classList.add('hidden');
-              stopCamera();
               recordInAppAttendance();
-              detectBusy = false;
-              return;
             } else {
-              lastMismatchAt = Date.now();
-              setStatus("ใบหน้าไม่ตรง — กำลังสแกนต่อ...", 'text-rose-400');
+              setStatus("ใบหน้าไม่ตรงกับผู้ใช้งาน", 'text-rose-400');
+              Swal.fire({
+                icon: 'error', title: 'ยืนยันตัวตนไม่สำเร็จ',
+                text: 'ใบหน้าที่สแกนไม่ตรงกับข้อมูลของคุณ',
+                showCancelButton: true, confirmButtonText: 'สแกนใหม่', cancelButtonText: 'ปิด',
+                confirmButtonColor: '#10b981'
+              }).then(r => { if (r.isConfirmed) beginCamera(); else goBackToApp(); });
             }
+            detectBusy = false;
+            return;
           }
         }
       } catch (e) { console.warn(e); }
       detectBusy = false;
     }
-    setTimeout(detectLoop, 700);
+    if (scanning) setTimeout(detectLoop, 500);
   }
 
   async function recordInAppAttendance() {
