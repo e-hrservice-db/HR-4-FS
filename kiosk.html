@@ -11,80 +11,72 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Sarabun', sans-serif; }
-    @keyframes scan { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
-    .animate-scan { animation: scan 2.5s ease-in-out infinite; }
-    @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
     .custom-scrollbar::-webkit-scrollbar { width: 6px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 9999px; }
   </style>
 </head>
 <body class="bg-slate-950">
 
-<div id="face-scanner-modal" class="fixed inset-0 bg-slate-950 z-[100] flex flex-col items-center justify-start">
+<div class="fixed inset-0 bg-slate-950 z-[100] flex flex-col items-center justify-start">
   <div class="w-full p-5 flex justify-between items-center bg-slate-950/80 border-b border-white/5 backdrop-blur-md absolute top-0 z-30">
     <div class="flex flex-col gap-1">
       <h2 class="text-white font-black text-base tracking-wide">ระบบสแกนใบหน้าลงเวลา</h2>
-      <div class="flex items-center">
-        <span id="scanner-status-text" class="text-[10px] font-black tracking-wide uppercase px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full animate-pulse">กำลังเตรียมระบบ...</span>
-      </div>
+      <span id="scanner-status-text" class="text-[10px] font-black tracking-wide uppercase px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full self-start animate-pulse">กำลังเตรียมระบบ...</span>
     </div>
-    <button onclick="resetScanner()" class="w-10 h-10 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-rose-500 hover:border-rose-500 transition-all duration-200 active:scale-90">
+    <button onclick="location.reload()" class="w-10 h-10 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-rose-500 hover:border-rose-500 transition-all active:scale-90">
       <i data-lucide="refresh-cw" class="w-5 h-5"></i>
     </button>
   </div>
 
   <div class="relative w-full h-full flex items-center justify-center bg-black overflow-hidden mt-16 pb-32">
-    <input type="file" id="camera-input" accept="image/*" capture="user" class="hidden" onchange="processCapturedImage(event)">
-
-    <div id="preview-container" class="relative w-full h-full hidden">
-      <img id="face-preview" class="w-full h-full object-contain transform scale-x-[-1]" alt="Preview">
-      <div id="scan-line" class="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_15px_#10b981] z-10 animate-scan hidden"></div>
+    <video id="cam" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1] hidden"></video>
+    <div id="cam-guide" class="absolute inset-0 hidden items-center justify-center pointer-events-none">
+      <div class="w-60 h-60 border-2 border-emerald-400/70 rounded-full shadow-[0_0_40px_rgba(16,185,129,0.4)]"></div>
     </div>
 
-    <div id="camera-placeholder" class="text-center flex flex-col items-center justify-center px-6 w-full max-w-sm animate-fade-in">
-      <div class="relative w-44 h-44 mb-8 flex items-center justify-center">
+    <div id="camera-placeholder" class="text-center flex flex-col items-center justify-center px-6 w-full max-w-sm">
+      <div class="relative w-40 h-40 mb-8 flex items-center justify-center">
         <div class="absolute inset-0 rounded-full border border-emerald-500/10 animate-ping"></div>
-        <div class="absolute inset-2 rounded-full border border-indigo-500/20 animate-pulse"></div>
         <div class="absolute inset-4 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center shadow-2xl">
-          <i data-lucide="scan-face" class="w-16 h-16 text-slate-400" id="placeholder-icon"></i>
+          <i data-lucide="scan-face" class="w-16 h-16 text-slate-400"></i>
         </div>
       </div>
-      <p id="placeholder-tip" class="text-slate-400 text-xs font-semibold tracking-wide mb-8 bg-slate-900/60 px-4 py-2 rounded-full border border-white/5 backdrop-blur-sm">กำลังเตรียมระบบตรวจสอบข้อมูล...</p>
-      <button id="btn-open-camera" onclick="openNativeCamera()" disabled class="w-full py-4 bg-slate-800 border border-slate-700 text-slate-500 rounded-2xl font-black text-sm shadow-inner flex items-center justify-center gap-2 transition-all duration-300 pointer-events-none">
-        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>กำลังจัดเตรียมระบบ AI...</span>
+      <p id="placeholder-tip" class="text-slate-400 text-xs font-semibold tracking-wide mb-8 bg-slate-900/60 px-4 py-2 rounded-full border border-white/5">กำลังตรวจสอบข้อมูล...</p>
+      <button id="btn-open-camera" onclick="startKioskFlow()" disabled class="w-full py-4 bg-slate-800 border border-slate-700 text-slate-500 rounded-2xl font-black text-sm flex items-center justify-center gap-2 pointer-events-none">
+        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span id="btn-open-label">กำลังจัดเตรียมระบบ...</span>
       </button>
     </div>
 
-    <div id="processing-overlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center hidden z-20">
-      <div class="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mb-4 animate-pulse">
-        <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+    <div id="scanning-badge" class="absolute bottom-36 left-1/2 -translate-x-1/2 hidden">
+      <span class="text-xs font-bold text-white bg-emerald-600/90 px-4 py-2 rounded-full flex items-center gap-2 shadow-lg">
+        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span id="scanning-badge-text">กำลังสแกน...</span>
+      </span>
+    </div>
+
+    <div id="device-block" class="absolute inset-0 bg-slate-950 flex-col items-center justify-center hidden px-8 z-50 text-center">
+      <div class="w-24 h-24 bg-rose-500/20 rounded-full flex items-center justify-center mb-5 border border-rose-500/40">
+        <i data-lucide="smartphone" class="w-12 h-12 text-rose-400"></i>
       </div>
-      <p class="text-white text-base font-black tracking-wide">กำลังวิเคราะห์ใบหน้า...</p>
-      <p class="text-emerald-400 text-xs mt-2 font-medium">AI กำลังเปรียบเทียบข้อมูลโครงสร้างใบหน้า</p>
+      <h3 class="text-white font-black text-xl">กรุณาเปิดจากมือถือหรือ iPad</h3>
+      <p class="text-slate-400 text-sm mt-2">ระบบสแกนรองรับเฉพาะโทรศัพท์มือถือหรือแท็บเล็ตเท่านั้น</p>
     </div>
   </div>
 
   <div class="absolute bottom-0 w-full bg-slate-950/90 border-t border-white/5 backdrop-blur-md p-6 rounded-t-[2rem] z-30 shadow-[0_-15px_30px_rgba(0,0,0,0.8)]">
-    <div class="flex p-1 bg-slate-900/80 border border-white/5 rounded-2xl mb-4">
-      <button id="btn-mode-auto" onclick="setScanMode('auto')" class="flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-950/30 transition-all duration-300">โหมดอัตโนมัติ</button>
-      <button id="btn-mode-manual" onclick="setScanMode('manual')" class="flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all duration-300">พิมพ์ชื่อก่อนถ่าย</button>
+    <div class="flex p-1 bg-slate-900/80 border border-white/5 rounded-2xl">
+      <button id="btn-mode-auto" onclick="setScanMode('auto')" class="flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md transition-all">โหมดอัตโนมัติ</button>
+      <button id="btn-mode-manual" onclick="setScanMode('manual')" class="flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all">เลือกชื่อก่อน</button>
     </div>
-
-    <div id="manual-select-area" class="hidden mb-4 relative animate-fade-in">
+    <div id="manual-select-area" class="hidden mt-4 relative">
       <div class="relative">
         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-        <input type="text" id="manual-user-search" oninput="filterManualUsers()" placeholder="ค้นหาชื่อเพื่อยืนยันตัวตน..." class="w-full pl-9 pr-4 py-3 bg-slate-900/60 border border-white/5 focus:border-emerald-500/50 rounded-2xl text-xs font-bold text-white outline-none transition-all duration-300">
+        <input type="text" id="manual-user-search" oninput="filterManualUsers()" placeholder="ค้นหาชื่อเพื่อยืนยันตัวตน..." class="w-full pl-9 pr-4 py-3 bg-slate-900/60 border border-white/5 focus:border-emerald-500/50 rounded-2xl text-xs font-bold text-white outline-none">
       </div>
-      <div id="manual-user-list" class="absolute bottom-full mb-2 w-full max-h-48 bg-slate-900/95 border border-white/10 rounded-2xl overflow-y-auto hidden z-30 shadow-2xl backdrop-blur-md divide-y divide-white/5 custom-scrollbar"></div>
+      <div id="manual-user-list" class="absolute bottom-full mb-2 w-full max-h-48 bg-slate-900/95 border border-white/10 rounded-2xl overflow-y-auto hidden z-30 shadow-2xl divide-y divide-white/5 custom-scrollbar"></div>
       <p id="selected-manual-user" class="text-[10px] text-amber-400 font-extrabold mt-3 text-center hidden bg-amber-500/10 border border-amber-500/20 py-2.5 rounded-xl">
         <i data-lucide="user-check" class="w-3.5 h-3.5 inline mr-1"></i> เตรียมสแกนสำหรับ: <span id="manual-target-name" class="text-white font-black ml-1"></span>
       </p>
     </div>
-
-    <button id="btn-retake" onclick="openNativeCamera()" class="hidden w-full py-3.5 bg-slate-900 border border-white/10 text-slate-200 rounded-xl text-xs font-black flex justify-center items-center gap-2 hover:bg-slate-800 transition-colors shadow-lg">
-      <i data-lucide="refresh-cw" class="w-4 h-4 text-emerald-400"></i> ถ่ายรูปใหม่อีกครั้ง
-    </button>
   </div>
 
   <div id="top3-modal" class="absolute inset-0 bg-slate-950/98 z-50 hidden flex-col items-center justify-center p-6">
@@ -92,9 +84,9 @@
       <i data-lucide="users-2" class="w-10 h-10"></i>
     </div>
     <h3 class="text-lg font-black text-white mb-2">พบใบหน้าที่สอดคล้อง</h3>
-    <p class="text-xs text-slate-400 mb-8 text-center max-w-xs leading-relaxed">ระบบตรวจพบผู้ใช้งานที่คล้ายคลึงกันหลายคน กรุณาเลือกชื่อที่ถูกต้องเพื่อลงเวลาทำงาน</p>
+    <p class="text-xs text-slate-400 mb-8 text-center max-w-xs leading-relaxed">ระบบตรวจพบผู้ใช้งานที่คล้ายคลึงกันหลายคน กรุณาเลือกชื่อที่ถูกต้อง</p>
     <div id="top3-list" class="w-full max-w-sm space-y-3"></div>
-    <button onclick="resumeScanning()" class="mt-8 w-full max-w-sm py-3.5 border border-white/10 hover:border-white/20 bg-white/5 active:scale-95 text-slate-300 rounded-2xl text-xs font-black transition-all">ถ่ายรูปใหม่อีกครั้ง</button>
+    <button onclick="resumeKiosk()" class="mt-8 w-full max-w-sm py-3.5 border border-white/10 bg-white/5 active:scale-95 text-slate-300 rounded-2xl text-xs font-black">สแกนใหม่อีกครั้ง</button>
   </div>
 </div>
 
@@ -102,12 +94,11 @@
   const SUPABASE_URL = 'https://lykcbppxbpnkipjhnqyk.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5a2NicHB4YnBua2lwamhucXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUwOTEsImV4cCI6MjA5MjY3MTA5MX0.bstoZYd8f0vC3FKnAr15S5AKuQtiT-wD019rc96e21k';
 
-  // โหมดทดสอบ: true = ข้าม GPS
-  const IS_TESTING = false;
+  let IS_TESTING = false;
   let faceDb = [];
   let scanMode = 'auto';
   let manualTargetFaceId = null;
-  let isSystemReady = false;
+  let camStream = null, scanning = false, detectBusy = false, lastTryAt = 0;
 
   const schoolPolygon = [
     { lat: 12.785238898383794, lng: 99.91365373134613 }, { lat: 12.78599745238914, lng: 99.91338819265366 }, { lat: 12.785939906992754, lng: 99.91311192512512 }, { lat: 12.786957412294308, lng: 99.91276323795319 }, { lat: 12.786894635736306, lng: 99.91252452135086 }, { lat: 12.787373306596795, lng: 99.9123340845108 }, { lat: 12.78749362809111, lng: 99.91252183914185 }, { lat: 12.788314951542185, lng: 99.91226702928543 }, { lat: 12.7884588136551, lng: 99.91263717412949 }, { lat: 12.786667070582686, lng: 99.9133238196373 }, { lat: 12.786936486776709, lng: 99.91428673267365 }, { lat: 12.783787176605763, lng: 99.91540253162384 }, { lat: 12.783400049388725, lng: 99.91421163082123 }, { lat: 12.784216154720637, lng: 99.91395145654678 }, { lat: 12.784025207235116, lng: 99.9134686589241 }, { lat: 12.783999050034073, lng: 99.91337478160858 }, { lat: 12.783821180995126, lng: 99.91340696811676 }, { lat: 12.783758403657343, lng: 99.91309851408005 }, { lat: 12.78491193474759, lng: 99.91268545389175 }
@@ -122,67 +113,48 @@
     }
     return inside;
   }
+  function isMobileOrTablet() {
+    const ua = navigator.userAgent || '';
+    const iPadOS13 = navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
+    const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);
+    return mobileUA || iPadOS13;
+  }
+  function setStatus(txt, color) {
+    const el = document.getElementById('scanner-status-text');
+    el.textContent = txt;
+    const c = color || 'amber';
+    el.className = `text-[10px] font-black tracking-wide uppercase px-2.5 py-1 bg-${c}-500/10 border border-${c}-500/20 text-${c}-400 rounded-full self-start`;
+  }
 
-  async function openFaceScanner() {
-    const statusTxt = document.getElementById('scanner-status-text');
-    const btn = document.getElementById('btn-open-camera');
-    const tip = document.getElementById('placeholder-tip');
+  async function loadFaceScanConfig() {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/system_configs?config_key=eq.face_scan_testing_mode&select=config_value`, {
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+      if (res.ok) { const d = await res.json(); if (d.length) IS_TESTING = (String(d[0].config_value).trim().toLowerCase() === 'true'); }
+    } catch (e) { console.warn(e); }
+  }
 
-    if (isSystemReady) { markReady(); return; }
-
-    btn.disabled = true;
-    btn.className = "w-full py-4 bg-slate-800 border border-slate-700 text-slate-500 rounded-2xl font-black text-sm shadow-inner flex items-center justify-center gap-2 transition-all duration-300 pointer-events-none";
-    btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>กำลังจัดเตรียมระบบ AI...</span>`;
-    tip.textContent = "กำลังตรวจสอบตำแหน่งพื้นที่ (GPS)...";
-    statusTxt.textContent = "กำลังตรวจสอบพื้นที่ (GPS)...";
-    statusTxt.className = "text-[10px] font-black tracking-wide uppercase px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full animate-pulse";
-    if (window.lucide) lucide.createIcons();
-
-    async function proceedToLoadFaceAI() {
-      statusTxt.textContent = "กำลังโหลดข้อมูลใบหน้าพนักงาน...";
-      statusTxt.className = "text-[10px] font-black tracking-wide uppercase px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-full animate-pulse";
-      tip.textContent = "กำลังดึงข้อมูลและจำลองฐานข้อมูลพนักงาน...";
-      await initFaceAI();
-    }
-
-    if (!navigator.geolocation) {
-      if (IS_TESTING) await proceedToLoadFaceAI();
-      else showErrorAndReset("อุปกรณ์ของคุณไม่รองรับ GPS");
-      return;
-    }
+  function startKioskFlow() {
+    if (!navigator.geolocation) { if (IS_TESTING) return loadAndStart(); return showErrorReload("อุปกรณ์ของคุณไม่รองรับ GPS"); }
+    setStatus("กำลังตรวจสอบพื้นที่ (GPS)...", 'amber');
+    document.getElementById('placeholder-tip').textContent = "กำลังตรวจสอบตำแหน่งพื้นที่ (GPS)...";
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
+      (position) => {
         const userLoc = { lat: position.coords.latitude, lng: position.coords.longitude };
-        if (!IS_TESTING && !isPointInPolygon(userLoc, schoolPolygon)) return showErrorAndReset("คุณอยู่นอกพื้นที่โรงเรียน ไม่สามารถลงเวลาได้");
-        await proceedToLoadFaceAI();
+        if (!IS_TESTING && !isPointInPolygon(userLoc, schoolPolygon)) return showErrorReload("คุณอยู่นอกพื้นที่โรงเรียน ไม่สามารถลงเวลาได้");
+        loadAndStart();
       },
-      async () => {
-        if (IS_TESTING) await proceedToLoadFaceAI();
-        else showErrorAndReset("กรุณาเปิดการระบุตำแหน่ง (GPS) และอนุญาตให้เข้าถึง");
-      },
+      () => { if (IS_TESTING) loadAndStart(); else showErrorReload("กรุณาเปิดการระบุตำแหน่ง (GPS) และอนุญาตให้เข้าถึง"); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }
+  function showErrorReload(msg) { Swal.fire({ icon: 'error', title: 'ไม่สามารถทำรายการได้', text: msg, confirmButtonText: 'ลองใหม่' }).then(() => location.reload()); }
 
-  function markReady() {
-    isSystemReady = true;
-    const btn = document.getElementById('btn-open-camera');
-    btn.disabled = false;
-    btn.className = "w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white rounded-2xl font-black text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer pointer-events-auto";
-    btn.innerHTML = `<i data-lucide="camera" class="w-4 h-4"></i> <span>เปิดกล้องถ่ายรูปสแกนหน้า</span>`;
-    document.getElementById('placeholder-tip').textContent = "ระบบพร้อมทำงานแล้ว กรุณากดเปิดกล้องสแกนหน้า";
-    const statusTxt = document.getElementById('scanner-status-text');
-    statusTxt.textContent = "ระบบพร้อมแล้ว!";
-    statusTxt.className = "text-[10px] font-black tracking-wide uppercase px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full";
-    if (window.lucide) lucide.createIcons();
-  }
-
-  function showErrorAndReset(msg) {
-    Swal.fire({ icon: 'error', title: 'ไม่สามารถทำรายการได้', text: msg, confirmButtonText: 'ลองอีกครั้ง' }).then(() => openFaceScanner());
-  }
-
-  async function initFaceAI() {
+  async function loadAndStart() {
     try {
+      setStatus("กำลังโหลดข้อมูลใบหน้า...", 'blue');
+      document.getElementById('placeholder-tip').textContent = "กำลังโหลด AI และฐานข้อมูลพนักงาน...";
       if (!window.faceapi.nets.ssdMobilenetv1.isLoaded) {
         const MODEL_URL = 'https:' + '//cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
         await Promise.all([
@@ -201,113 +173,88 @@
           let rawData = u.data_face_id;
           if (typeof rawData === 'string') { try { rawData = JSON.parse(rawData); } catch (e) {} }
           if (rawData && typeof rawData === 'object' && !Array.isArray(rawData)) rawData = Object.values(rawData);
-          let descriptorArr = new Float32Array(128);
-          if (Array.isArray(rawData) && rawData.length === 128) descriptorArr = new Float32Array(rawData);
-          return { id: u.id, face_scan_id: u.face_scan_id, name: `${u.first_name} ${u.last_name}`, descriptor: descriptorArr };
+          let d = new Float32Array(128);
+          if (Array.isArray(rawData) && rawData.length === 128) d = new Float32Array(rawData);
+          return { id: u.id, face_scan_id: u.face_scan_id, name: `${u.first_name} ${u.last_name}`, descriptor: d };
         }).filter(u => u.descriptor[0] !== 0 || u.descriptor[1] !== 0);
       }
-      markReady();
+      await beginCamera();
+    } catch (e) { console.error(e); showErrorReload("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล"); }
+  }
+
+  async function beginCamera() {
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 } }, audio: false });
+      const video = document.getElementById('cam');
+      video.srcObject = camStream;
+      await video.play();
+      document.getElementById('camera-placeholder').classList.add('hidden');
+      video.classList.remove('hidden');
+      document.getElementById('cam-guide').classList.remove('hidden');
+      document.getElementById('cam-guide').classList.add('flex');
+      document.getElementById('scanning-badge').classList.remove('hidden');
+      setStatus("พร้อมสแกน — เชิญหน้ากล้อง", 'emerald');
+      scanning = true;
+      detectLoop();
     } catch (e) {
       console.error(e);
-      showErrorAndReset("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล");
+      showErrorReload("เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์");
     }
   }
 
-  function openNativeCamera() {
-    if (!isSystemReady) return;
-    if (scanMode === 'manual' && !manualTargetFaceId) {
-      return Swal.fire({ icon: 'warning', title: 'กรุณาเลือกชื่อ', text: 'โปรดค้นหาและเลือกชื่อของคุณก่อนถ่ายรูป', confirmButtonText: 'ตกลง' });
-    }
-    document.getElementById('camera-input').click();
+  function videoToCanvas() {
+    const video = document.getElementById('cam');
+    if (!video.videoWidth) return null;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const MAX_WIDTH = 600;
+    let s = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1;
+    canvas.width = video.videoWidth * s;
+    canvas.height = video.videoHeight * s;
+    if (ctx.filter !== undefined) ctx.filter = 'brightness(1.12) contrast(1.08)';
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    if (ctx.filter !== undefined) ctx.filter = 'none';
+    return canvas;
   }
 
-  async function processCapturedImage(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    event.target.value = '';
-
-    const previewContainer = document.getElementById('preview-container');
-    const imgPreview = document.getElementById('face-preview');
-    const placeholder = document.getElementById('camera-placeholder');
-    const overlay = document.getElementById('processing-overlay');
-    const btnRetake = document.getElementById('btn-retake');
-    const scanLine = document.getElementById('scan-line');
-
-    imgPreview.src = URL.createObjectURL(file);
-    previewContainer.classList.remove('hidden');
-    placeholder.classList.add('hidden');
-    overlay.classList.remove('hidden');
-    btnRetake.classList.add('hidden');
-    scanLine.classList.remove('hidden');
-    document.getElementById('scanner-status-text').textContent = "กำลังวิเคราะห์โครงสร้างใบหน้า...";
-
-    imgPreview.onload = async () => {
+  async function detectLoop() {
+    if (!scanning) return;
+    if (!detectBusy && (Date.now() - lastTryAt > 1200)) {
+      detectBusy = true;
       try {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const MAX_WIDTH = 600;
-        let scaleSize = 1;
-        if (imgPreview.naturalWidth > MAX_WIDTH) scaleSize = MAX_WIDTH / imgPreview.naturalWidth;
-        canvas.width = imgPreview.naturalWidth * scaleSize;
-        canvas.height = imgPreview.naturalHeight * scaleSize;
-
-        let filterApplied = false;
-        if (ctx.filter !== undefined) { ctx.filter = 'brightness(1.15) contrast(1.10)'; filterApplied = true; }
-        ctx.drawImage(imgPreview, 0, 0, canvas.width, canvas.height);
-        if (ctx.filter !== undefined) ctx.filter = 'none';
-        if (!filterApplied) {
-          try {
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imgData.data;
-            for (let i = 0; i < data.length; i += 4) {
-              data[i] = Math.max(0, Math.min(255, (data[i] - 128) * 1.15 + 128 + 25));
-              data[i + 1] = Math.max(0, Math.min(255, (data[i + 1] - 128) * 1.15 + 128 + 25));
-              data[i + 2] = Math.max(0, Math.min(255, (data[i + 2] - 128) * 1.15 + 128 + 25));
-            }
-            ctx.putImageData(imgData, 0, 0);
-          } catch (e) { console.warn(e); }
+        const canvas = videoToCanvas();
+        if (canvas) {
+          const det = await faceapi.detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 })).withFaceLandmarks().withFaceDescriptor();
+          if (det && det.detection.score >= 0.5) { lastTryAt = Date.now(); analyzeFaceDescriptor(det.descriptor); }
         }
-
-        const detection = await faceapi.detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.15 })).withFaceLandmarks().withFaceDescriptor();
-        overlay.classList.add('hidden');
-        scanLine.classList.add('hidden');
-        btnRetake.classList.remove('hidden');
-
-        if (!detection) {
-          return Swal.fire({ icon: 'error', title: 'ไม่พบใบหน้า', text: 'รูปภาพไม่ชัดเจนเพียงพอ กรุณาลองถ่ายใหม่อีกครั้งในบริเวณที่มีแสงสว่างดีครับ', confirmButtonText: 'ถ่ายรูปใหม่' }).then(() => openNativeCamera());
-        }
-        analyzeFaceDescriptor(detection.descriptor);
-      } catch (e) {
-        console.error("Error วิเคราะห์ใบหน้า:", e);
-        overlay.classList.add('hidden');
-        scanLine.classList.add('hidden');
-        Swal.fire({ icon: 'error', title: 'วิเคราะห์ภาพล้มเหลว', text: `สาเหตุ: ${e.message || 'กรุณาลองถ่ายใหม่อีกครั้ง'}` });
-      }
-    };
+      } catch (e) { console.warn(e); }
+      detectBusy = false;
+    }
+    if (scanning) setTimeout(detectLoop, 600);
   }
 
   function analyzeFaceDescriptor(descriptor) {
     if (scanMode === 'manual' && manualTargetFaceId) {
-      const targetUser = faceDb.find(u => u.face_scan_id === manualTargetFaceId);
-      if (targetUser) {
-        const distance = faceapi.euclideanDistance(descriptor, targetUser.descriptor);
-        if (distance <= 0.45) return handleSuccessScan(targetUser);
-        else return Swal.fire({ icon: 'error', title: 'ใบหน้าไม่ตรงกัน', text: 'รูปภาพกับชื่อที่เลือกไม่สอดคล้องกัน กรุณาตรวจสอบข้อมูลและถ่ายใหม่อีกครั้งครับ', confirmButtonText: 'ลองอีกครั้ง' });
+      const t = faceDb.find(u => u.face_scan_id === manualTargetFaceId);
+      if (t) {
+        const distance = faceapi.euclideanDistance(descriptor, t.descriptor);
+        if (distance <= 0.45) { scanning = false; handleSuccessScan(t); }
+        else setStatus("ใบหน้าไม่ตรงกับชื่อที่เลือก", 'rose');
       }
-    } else if (scanMode === 'auto') {
+    } else {
       let matches = faceDb.map(u => ({ ...u, distance: faceapi.euclideanDistance(descriptor, u.descriptor) }));
       matches.sort((a, b) => a.distance - b.distance);
-      const bestMatch = matches[0];
-      if (bestMatch && bestMatch.distance <= 0.35) return handleSuccessScan(bestMatch);
-      else if (bestMatch && bestMatch.distance <= 0.5) return showTop3Selection(matches.filter(m => m.distance <= 0.5).slice(0, 3));
-      else return Swal.fire({ icon: 'error', title: 'ไม่พบข้อมูลบุคคล', text: 'ระบบไม่สามารถระบุตัวตนของคุณได้ กรุณาลองถ่ายใหม่อีกครั้ง หรือใช้โหมดพิมพ์ค้นหาชื่อก่อนถ่ายรูป', confirmButtonText: 'ตกลง' });
+      const best = matches[0];
+      if (best && best.distance <= 0.35) { scanning = false; handleSuccessScan(best); }
+      else if (best && best.distance <= 0.5) { scanning = false; showTop3Selection(matches.filter(m => m.distance <= 0.5).slice(0, 3)); }
+      // ถ้าไม่เข้าเกณฑ์ → ปล่อยลูปต่อเงียบ ๆ (ไม่เด้ง alert)
     }
   }
 
   async function handleSuccessScan(userObj) {
-    const st = document.getElementById('scanner-status-text');
-    st.textContent = `กำลังลงบันทึกเวลาทำงาน...`;
-    st.className = "text-emerald-400 text-[10px] font-black tracking-wide uppercase px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full animate-pulse";
+    scanning = false;
+    document.getElementById('scanning-badge').classList.add('hidden');
+    setStatus("กำลังลงบันทึกเวลา...", 'emerald');
 
     const now = new Date();
     const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
@@ -320,10 +267,7 @@
     else {
       if (scanTime >= '04:00:00' && scanTime <= '14:00:00') scanAction = 'in';
       else if (scanTime >= '14:00:01' && scanTime <= '23:59:59') scanAction = 'out';
-      else {
-        if (IS_TESTING) scanAction = 'in';
-        else { Swal.fire({ icon: 'warning', title: 'ไม่อยู่ในช่วงเวลาสแกน', text: 'ระบบอนุญาตให้สแกนเข้า (04:00-14:00) และสแกนออก (14:01-23:59) เท่านั้นครับ' }).then(resetScanner); return; }
-      }
+      else { if (IS_TESTING) scanAction = 'in'; else { Swal.fire({ icon: 'warning', title: 'ไม่อยู่ในช่วงเวลาสแกน', text: 'อนุญาตสแกนเข้า (04:00-14:00) และออก (14:01-23:59) เท่านั้น' }).then(resumeKiosk); return; } }
     }
 
     try {
@@ -358,7 +302,6 @@
 
       let timeIn = dailyData ? dailyData.time_in : null;
       let timeOut = dailyData ? dailyData.time_out : null;
-
       if (isGuard) {
         if (!timeIn) { timeIn = scanTime; timeOut = scanTime; }
         else { timeIn = timeIn < scanTime ? timeIn : scanTime; timeOut = timeOut > scanTime ? timeOut : scanTime; }
@@ -369,7 +312,6 @@
 
       const tInShort = timeIn ? timeIn.substring(0, 5) : '-';
       const tOutShort = timeOut ? timeOut.substring(0, 5) : '-';
-
       let recordType = isAnyHoliday ? 'holiday' : 'present';
       let subType = 'no_data';
       let remark = '-';
@@ -393,7 +335,7 @@
       }
       if (isGuard && isSingleScan) { recordType = 'present'; subType = 'evening_shift'; remark = `เข้างานช่วงเย็น [เวลา: ${tInShort}]`; }
 
-      const payloadLog = { machine_id: 'GitHubPages_Kiosk', face_scan_id: userObj.face_scan_id, scan_date: scanDate, scan_time: scanTime, original_log: `Face Match (${scanAction})`, status: 'processed' };
+      const payloadLog = { machine_id: 'GitHubPages_Kiosk', face_scan_id: userObj.face_scan_id, scan_date: scanDate, scan_time: scanTime, original_log: `Live Face Match (${scanAction})`, status: 'processed' };
       const payloadDaily = { user_id: userObj.id, attendance_date: scanDate, time_in: timeIn, time_out: timeOut, record_type: recordType, sub_type: subType, remark: remark };
       const urlDaily = dailyData ? `${SUPABASE_URL}/rest/v1/daily_attendance_records?id=eq.${dailyData.id}` : `${SUPABASE_URL}/rest/v1/daily_attendance_records`;
 
@@ -404,34 +346,34 @@
 
       let alertIcon = 'success';
       if (subType.includes('late')) alertIcon = 'warning';
-      Swal.fire({ icon: alertIcon, title: 'ลงเวลาสำเร็จ', text: `${userObj.name}\n${remark}`, timer: 2500, showConfirmButton: true, confirmButtonText: 'ตกลง', confirmButtonColor: '#10b981' }).then(resetScanner);
+      Swal.fire({ icon: alertIcon, title: 'ลงเวลาสำเร็จ', text: `${userObj.name}\n${remark}`, timer: 2500, timerProgressBar: true, showConfirmButton: true, confirmButtonText: 'ตกลง', confirmButtonColor: '#10b981' }).then(resumeKiosk);
     } catch (e) {
       console.error(e);
-      Swal.fire({ icon: 'error', title: 'การบันทึกข้อมูลล้มเหลว', text: 'สแกนหน้าผ่านแล้ว แต่ไม่สามารถบันทึกข้อมูลลงระบบได้' }).then(resetScanner);
+      Swal.fire({ icon: 'error', title: 'การบันทึกข้อมูลล้มเหลว', text: 'สแกนหน้าผ่านแล้ว แต่ไม่สามารถบันทึกข้อมูลลงระบบได้' }).then(resumeKiosk);
     }
   }
 
-  // รีเซ็ตเครื่องให้พร้อมสแกนคนต่อไป (ไม่ปิดหน้า)
-  function resetScanner() {
+  // กลับไปสแกนคนต่อไป (กล้องยังเปิดอยู่)
+  function resumeKiosk() {
     document.getElementById('top3-modal').classList.add('hidden');
-    document.getElementById('preview-container').classList.add('hidden');
-    document.getElementById('scan-line').classList.add('hidden');
-    document.getElementById('camera-placeholder').classList.remove('hidden');
-    document.getElementById('btn-retake').classList.add('hidden');
-    document.getElementById('camera-input').value = '';
     manualTargetFaceId = null;
     document.getElementById('selected-manual-user').classList.add('hidden');
     document.getElementById('manual-user-search').value = '';
-    if (isSystemReady) markReady();
+    if (camStream) {
+      document.getElementById('scanning-badge').classList.remove('hidden');
+      setStatus("พร้อมสแกน — เชิญหน้ากล้อง", 'emerald');
+      scanning = true; detectBusy = false; lastTryAt = 0;
+      detectLoop();
+    }
   }
 
   function showTop3Selection(top3List) {
     const modal = document.getElementById('top3-modal');
     document.getElementById('top3-list').innerHTML = top3List.map(u => `
       <button onclick="selectTop3User('${u.face_scan_id}')" class="w-full bg-white/5 border border-white/10 hover:border-white/20 p-4 rounded-2xl flex items-center gap-4 transition-all text-left group active:scale-[0.98]">
-        <div class="w-10 h-10 bg-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white rounded-full flex shrink-0 items-center justify-center font-bold shadow-sm transition-all duration-300">${u.name.substring(0, 1)}</div>
+        <div class="w-10 h-10 bg-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white rounded-full flex shrink-0 items-center justify-center font-bold">${u.name.substring(0, 1)}</div>
         <div class="flex-1"><p class="text-white font-extrabold text-sm">${u.name}</p><p class="text-emerald-400 text-[10px] font-semibold mt-0.5">ความใกล้เคียง: ${Math.round((1 - u.distance) * 100 || 85)}%</p></div>
-        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 group-hover:text-white transition-colors"></i>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
       </button>`).join('');
     modal.classList.remove('hidden'); modal.classList.add('flex');
     if (window.lucide) lucide.createIcons();
@@ -448,13 +390,13 @@
     const btnManual = document.getElementById('btn-mode-manual');
     const manualArea = document.getElementById('manual-select-area');
     if (mode === 'auto') {
-      btnAuto.className = "flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-950/30 transition-all duration-300";
-      btnManual.className = "flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all duration-300";
+      btnAuto.className = "flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md transition-all";
+      btnManual.className = "flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all";
       manualArea.classList.add('hidden'); manualTargetFaceId = null;
       document.getElementById('selected-manual-user').classList.add('hidden');
     } else {
-      btnManual.className = "flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-950/30 transition-all duration-300";
-      btnAuto.className = "flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all duration-300";
+      btnManual.className = "flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md transition-all";
+      btnAuto.className = "flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all";
       manualArea.classList.remove('hidden'); renderManualUserList();
     }
   }
@@ -464,7 +406,7 @@
     if (searchText) filtered = faceDb.filter(u => u.name.toLowerCase().includes(searchText.toLowerCase()));
     if (filtered.length === 0) listDiv.innerHTML = `<div class="p-4 text-xs text-slate-500 text-center font-bold">ไม่พบชื่อที่ตรงกัน</div>`;
     else listDiv.innerHTML = filtered.map(u => `
-      <div onclick="selectManualTarget('${u.face_scan_id}', '${u.name.replace(/'/g, "\\'")}')" class="p-3.5 text-xs text-slate-300 hover:bg-white/5 hover:text-white cursor-pointer transition-colors flex items-center justify-between">
+      <div onclick="selectManualTarget('${u.face_scan_id}', '${u.name.replace(/'/g, "\\'")}')" class="p-3.5 text-xs text-slate-300 hover:bg-white/5 hover:text-white cursor-pointer flex items-center justify-between">
         <span class="font-bold">${u.name}</span><span class="text-[9px] font-mono text-slate-500">ID: ${u.face_scan_id}</span>
       </div>`).join('');
     listDiv.classList.remove('hidden');
@@ -478,9 +420,25 @@
     document.getElementById('selected-manual-user').classList.remove('hidden');
     if (window.lucide) lucide.createIcons();
   }
-  function resumeScanning() { document.getElementById('top3-modal').classList.add('hidden'); openNativeCamera(); }
 
-  window.addEventListener('load', () => { if (window.lucide) lucide.createIcons(); openFaceScanner(); });
+  async function init() {
+    if (window.lucide) lucide.createIcons();
+    await loadFaceScanConfig();
+    if (!IS_TESTING && !isMobileOrTablet()) {
+      document.getElementById('camera-placeholder').classList.add('hidden');
+      const b = document.getElementById('device-block'); b.classList.remove('hidden'); b.classList.add('flex');
+      setStatus("อุปกรณ์ไม่รองรับ", 'rose');
+      return;
+    }
+    const btn = document.getElementById('btn-open-camera');
+    btn.disabled = false;
+    btn.className = "w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white rounded-2xl font-black text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer pointer-events-auto";
+    btn.innerHTML = `<i data-lucide="camera" class="w-4 h-4"></i> <span>เริ่มระบบสแกน</span>`;
+    document.getElementById('placeholder-tip').textContent = "กดเริ่มเพื่อเปิดกล้องและเริ่มสแกนใบหน้า";
+    setStatus("พร้อมเริ่ม", 'emerald');
+    if (window.lucide) lucide.createIcons();
+  }
+  window.addEventListener('load', init);
 </script>
 </body>
 </html>
