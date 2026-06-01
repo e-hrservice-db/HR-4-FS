@@ -9,277 +9,189 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style> * { font-family: 'Sarabun', sans-serif; } </style>
+  <style>
+    * { font-family: 'Sarabun', sans-serif; }
+    .sheet { transition: transform .3s cubic-bezier(.4,0,.2,1); }
+    .sheet.hidden-sheet { transform: translateY(110%); }
+    @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.1); opacity: 1 } 100% { transform: scale(1) } }
+    .pop { animation: pop .35s ease-out; }
+  </style>
 </head>
-<body class="bg-slate-900">
+<body class="bg-slate-900 text-white overflow-hidden">
 
-<div class="fixed inset-0 z-[100] w-full h-full bg-slate-900 flex flex-col">
-  <!-- Header -->
-  <div class="w-full p-5 flex justify-between items-center bg-slate-900/80 backdrop-blur-md relative z-30">
-    <div>
-      <h2 class="text-white font-black text-lg">สแกนลงเวลา</h2>
-      <p id="inapp-status-text" class="text-amber-400 text-xs font-bold animate-pulse">กำลังเตรียมระบบ...</p>
+<div class="fixed inset-0 flex flex-col">
+  <div class="px-5 pt-5 pb-3 bg-slate-900/90 backdrop-blur-md z-30 shrink-0">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-black text-base">สแกนลงเวลา</h2>
+      <button onclick="goBackToApp()" class="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
     </div>
-    <button onclick="goBackToApp()" class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-rose-500 transition-colors">
-      <i data-lucide="x" class="w-5 h-5"></i>
-    </button>
+    <div id="stepper" class="flex items-center gap-1.5"></div>
   </div>
 
-  <div class="relative w-full h-full flex-1 flex items-center justify-center bg-black overflow-hidden">
-    <!-- กล้องสด -->
-    <video id="cam" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1] hidden"></video>
-    <!-- กรอบไกด์ใบหน้า -->
-    <div id="cam-guide" class="absolute inset-0 hidden items-center justify-center pointer-events-none">
-      <div class="w-56 h-56 border-2 border-emerald-400/70 rounded-full shadow-[0_0_40px_rgba(16,185,129,0.4)]"></div>
+  <div class="relative flex-1 bg-black overflow-hidden flex items-center justify-center">
+    <video id="cam" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover transform scale-x-[-1] hidden"></video>
+    <div id="guide" class="absolute inset-0 hidden items-center justify-center pointer-events-none">
+      <div class="relative w-64 h-64 rounded-full border-[3px] border-emerald-400/70 shadow-[0_0_50px_rgba(16,185,129,0.45)] flex items-center justify-center">
+        <span id="countdown" class="text-7xl font-black text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]"></span>
+      </div>
     </div>
 
-    <!-- ก่อนเริ่ม -->
-    <div id="inapp-camera-placeholder" class="text-center flex flex-col items-center justify-center px-6">
-      <div class="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center mb-4 border border-emerald-500/30">
-        <i data-lucide="scan-face" class="w-10 h-10 text-emerald-400"></i>
-      </div>
-      <p class="text-slate-400 text-sm font-medium mb-6">กดเริ่มสแกน ระบบจะเปิดกล้องและจับใบหน้าให้อัตโนมัติ</p>
-      <button onclick="startScanFlow()" id="btn-inapp-camera" disabled class="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-full font-bold shadow-lg shadow-emerald-500/30 flex items-center gap-2 active:scale-95 transition-all">
-        <i data-lucide="camera" class="w-5 h-5"></i> <span id="btn-inapp-label">กำลังเตรียม...</span>
+    <div id="screen-start" class="relative z-10 text-center px-8 flex flex-col items-center">
+      <div class="w-24 h-24 bg-emerald-500/20 border border-emerald-500/30 rounded-full flex items-center justify-center mb-5"><i data-lucide="scan-face" class="w-12 h-12 text-emerald-400"></i></div>
+      <p class="text-slate-300 text-sm mb-7 max-w-xs">กดเริ่ม จัดใบหน้าให้อยู่ในวงกลม ระบบจะนับถอยหลังแล้วยืนยันตัวตนอัตโนมัติ</p>
+      <button id="btn-start" onclick="startFlow()" disabled class="px-10 py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-full font-bold shadow-lg shadow-emerald-500/30 flex items-center gap-2 active:scale-95 transition-all">
+        <i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> <span id="btn-start-label">กำลังเตรียม...</span>
       </button>
     </div>
 
-    <!-- สถานะกำลังสแกน (ลอยล่าง) -->
-    <div id="inapp-scanning-badge" class="absolute bottom-24 left-1/2 -translate-x-1/2 hidden">
-      <span class="text-xs font-bold text-white bg-emerald-600/90 px-4 py-2 rounded-full flex items-center gap-2 shadow-lg">
-        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> กำลังค้นหาใบหน้า...
-      </span>
+    <div id="screen-block" class="relative z-20 text-center px-8 hidden flex-col items-center">
+      <div class="w-24 h-24 bg-rose-500/20 border border-rose-500/40 rounded-full flex items-center justify-center mb-5"><i data-lucide="smartphone" class="w-12 h-12 text-rose-400"></i></div>
+      <h3 class="font-black text-xl">กรุณาเปิดจากมือถือหรือ iPad</h3>
+      <p class="text-slate-400 text-sm mt-2">ระบบรองรับเฉพาะโทรศัพท์มือถือหรือแท็บเล็ตเท่านั้น</p>
     </div>
 
-    <!-- ผลลัพธ์สำเร็จ -->
-    <div id="inapp-result" class="absolute inset-0 bg-slate-900 flex-col items-center justify-center hidden px-8 z-40 text-center">
-      <div class="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center mb-5 border border-emerald-500/40">
-        <i data-lucide="check" class="w-12 h-12 text-emerald-400"></i>
-      </div>
-      <h3 class="text-white font-black text-xl">ลงเวลาสำเร็จ</h3>
-      <p id="inapp-result-text" class="text-slate-300 text-sm mt-2 whitespace-pre-line"></p>
-      <button onclick="goBackToApp()" class="mt-8 px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-bold shadow-lg active:scale-95">กลับสู่แอป</button>
-    </div>
-
-    <!-- บล็อกอุปกรณ์ไม่ใช่มือถือ -->
-    <div id="device-block" class="absolute inset-0 bg-slate-900 flex-col items-center justify-center hidden px-8 z-50 text-center">
-      <div class="w-24 h-24 bg-rose-500/20 rounded-full flex items-center justify-center mb-5 border border-rose-500/40">
-        <i data-lucide="smartphone" class="w-12 h-12 text-rose-400"></i>
-      </div>
-      <h3 class="text-white font-black text-xl">กรุณาเปิดจากมือถือหรือ iPad</h3>
-      <p class="text-slate-400 text-sm mt-2">ระบบสแกนลงเวลารองรับเฉพาะโทรศัพท์มือถือหรือแท็บเล็ตเท่านั้น</p>
+    <div id="hint-bar" class="absolute bottom-5 left-1/2 -translate-x-1/2 hidden">
+      <span id="hint-text" class="text-sm font-bold bg-black/55 backdrop-blur px-5 py-2.5 rounded-full">จัดใบหน้าให้อยู่ในวงกลม</span>
     </div>
   </div>
+</div>
+
+<div id="sheet-backdrop" class="fixed inset-0 bg-black/50 z-40 hidden"></div>
+<div id="sheet" class="sheet hidden-sheet fixed bottom-0 left-0 right-0 z-50 bg-slate-800 rounded-t-3xl border-t border-white/10 shadow-2xl max-h-[80vh] flex flex-col">
+  <div class="flex justify-center pt-3"><div class="w-12 h-1.5 bg-white/20 rounded-full"></div></div>
+  <div class="px-5 pt-2 pb-3 flex items-center justify-between">
+    <h3 id="sheet-title" class="font-black text-base"></h3>
+    <button onclick="closeSheet()" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400"><i data-lucide="x" class="w-4 h-4"></i></button>
+  </div>
+  <div id="sheet-body" class="px-5 pb-7 overflow-y-auto"></div>
 </div>
 
 <script>
   const SUPABASE_URL = 'https://lykcbppxbpnkipjhnqyk.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5a2NicHB4YnBua2lwamhucXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUwOTEsImV4cCI6MjA5MjY3MTA5MX0.bstoZYd8f0vC3FKnAr15S5AKuQtiT-wD019rc96e21k';
+  const Toast = Swal.mixin({ toast: true, position: 'bottom', showConfirmButton: false, timer: 2600, timerProgressBar: true });
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   let INAPP_IS_TESTING = false;
-  const inAppSchoolPolygon = [
-    {lat:12.785238898383794, lng:99.91365373134613}, {lat:12.78599745238914, lng:99.91338819265366}, {lat:12.785939906992754, lng:99.91311192512512}, {lat:12.786957412294308, lng:99.91276323795319}, {lat:12.786894635736306, lng:99.91252452135086}, {lat:12.787373306596795, lng:99.9123340845108}, {lat:12.78749362809111, lng:99.91252183914185}, {lat:12.788314951542185, lng:99.91226702928543}, {lat:12.7884588136551, lng:99.91263717412949}, {lat:12.786667070582686, lng:99.9133238196373}, {lat:12.786936486776709, lng:99.91428673267365}, {lat:12.783787176605763, lng:99.91540253162384}, {lat:12.783400049388725, lng:99.91421163082123}, {lat:12.784216154720637, lng:99.91395145654678}, {lat:12.784025207235116, lng:99.9134686589241}, {lat:12.783999050034073, lng:99.91337478160858}, {lat:12.783821180995126, lng:99.91340696811676}, {lat:12.783758403657343, lng:99.91309851408005}, {lat:12.78491193474759, lng:99.91268545389175}
-  ];
-
-  let myFaceDescriptor = null;
-  let currentUserData = null;
-  let camStream = null;
-  let scanning = false;
-  let detectBusy = false;
-  let lastMismatchAt = 0;
+  let myFaceDescriptor = null, currentUserData = null;
+  let camStream = null, scanning = false, counting = false;
+  const STEPS = ['เริ่ม', 'จัดใบหน้า', 'ตรวจสอบ', 'สำเร็จ'];
 
   function getHashParam(k) { return new URLSearchParams((location.hash || '').replace(/^#/, '')).get(k); }
+  function setStep(active) {
+    document.getElementById('stepper').innerHTML = STEPS.map((s, i) => {
+      const done = i < active, cur = i === active;
+      const dot = done ? 'bg-emerald-500 text-white' : cur ? 'bg-emerald-400 text-slate-900' : 'bg-white/10 text-slate-400';
+      const line = i < STEPS.length - 1 ? `<div class="flex-1 h-0.5 ${i < active ? 'bg-emerald-500' : 'bg-white/10'}"></div>` : '';
+      return `<div class="flex items-center gap-1.5"><div class="w-6 h-6 rounded-full ${dot} text-[11px] font-black flex items-center justify-center shrink-0">${done ? '✓' : (i + 1)}</div><span class="text-[11px] font-bold ${cur ? 'text-white' : 'text-slate-500'} hidden xs:inline">${s}</span></div>${line}`;
+    }).join('');
+  }
+  function setHint(t) { document.getElementById('hint-text').textContent = t; }
   function isMobileOrTablet() {
     const ua = navigator.userAgent || '';
     const iPadOS13 = navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
-    const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);
-    return mobileUA || iPadOS13;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua) || iPadOS13;
   }
-  function setStatus(txt, cls) {
-    const el = document.getElementById('inapp-status-text');
-    el.textContent = txt;
-    el.className = (cls || 'text-amber-400') + ' text-xs font-bold';
-  }
-  function goBackToApp() {
-    stopCamera();
-    try { window.close(); } catch (e) {}
-    setTimeout(() => { document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-family:Sarabun,sans-serif;text-align:center;padding:24px">เสร็จสิ้น — กลับไปที่แอป HR ได้เลยครับ<br>(ปิดแท็บนี้)</div>'; }, 300);
-  }
-
-  async function loadFaceScanConfig() {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/system_configs?config_key=eq.face_scan_testing_mode&select=config_value`, {
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-      });
-      if (res.ok) { const d = await res.json(); if (d.length) INAPP_IS_TESTING = (String(d[0].config_value).trim().toLowerCase() === 'true'); }
-    } catch (e) { console.warn('โหลด config ไม่ได้ ใช้ค่า default (false)', e); }
-  }
-
-  function checkInAppGPS(point, vs) {
+  const inAppSchoolPolygon = [
+    {lat:12.785238898383794, lng:99.91365373134613}, {lat:12.78599745238914, lng:99.91338819265366}, {lat:12.785939906992754, lng:99.91311192512512}, {lat:12.786957412294308, lng:99.91276323795319}, {lat:12.786894635736306, lng:99.91252452135086}, {lat:12.787373306596795, lng:99.9123340845108}, {lat:12.78749362809111, lng:99.91252183914185}, {lat:12.788314951542185, lng:99.91226702928543}, {lat:12.7884588136551, lng:99.91263717412949}, {lat:12.786667070582686, lng:99.9133238196373}, {lat:12.786936486776709, lng:99.91428673267365}, {lat:12.783787176605763, lng:99.91540253162384}, {lat:12.783400049388725, lng:99.91421163082123}, {lat:12.784216154720637, lng:99.91395145654678}, {lat:12.784025207235116, lng:99.9134686589241}, {lat:12.783999050034073, lng:99.91337478160858}, {lat:12.783821180995126, lng:99.91340696811676}, {lat:12.783758403657343, lng:99.91309851408005}, {lat:12.78491193474759, lng:99.91268545389175}
+  ];
+  function inPoly(point, vs) {
     let x = point.lat, y = point.lng, inside = false;
-    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-      let xi = vs[i].lat, yi = vs[i].lng, xj = vs[j].lat, yj = vs[j].lng;
-      let intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-      if (intersect) inside = !inside;
-    }
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) { let xi = vs[i].lat, yi = vs[i].lng, xj = vs[j].lat, yj = vs[j].lng; let it = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi); if (it) inside = !inside; }
     return inside;
   }
+  function goBackToApp() { stopCamera(); try { window.close(); } catch (e) {} setTimeout(() => { document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-family:Sarabun;text-align:center;padding:24px">เสร็จสิ้น — กลับไปที่แอป HR ได้เลยครับ<br>(ปิดแท็บนี้)</div>'; }, 300); }
+  function openSheet(title, html) { document.getElementById('sheet-title').textContent = title; document.getElementById('sheet-body').innerHTML = html; document.getElementById('sheet-backdrop').classList.remove('hidden'); document.getElementById('sheet').classList.remove('hidden-sheet'); if (window.lucide) lucide.createIcons(); }
+  function closeSheet() { document.getElementById('sheet').classList.add('hidden-sheet'); document.getElementById('sheet-backdrop').classList.add('hidden'); }
 
-  // โหลดโมเดล + descriptor ของผู้ใช้ (เตรียมไว้ก่อน) → ปลดล็อกปุ่มเริ่ม
-  async function prepareScan() {
-    try {
-      const userId = getHashParam('uid');
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}&select=id,face_scan_id,first_name,last_name,data_face_id`, {
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-      });
-      if (!res.ok) throw new Error("โหลดข้อมูลไม่ได้");
-      const userData = await res.json();
-      if (userData.length === 0 || !userData[0].data_face_id) {
-        Swal.fire({ icon: 'warning', title: 'ยังไม่ได้ลงทะเบียน', text: 'คุณยังไม่ได้ลงทะเบียนใบหน้า กรุณาลงทะเบียนที่เมนู "ลงทะเบียนหน้า" ก่อนครับ' }).then(goBackToApp);
-        return;
-      }
-      const u = userData[0];
-      let rawData = u.data_face_id;
-      if (typeof rawData === 'string') { try { rawData = JSON.parse(rawData); } catch (e) {} }
-      if (rawData && typeof rawData === 'object' && !Array.isArray(rawData)) rawData = Object.values(rawData);
-      if (Array.isArray(rawData) && rawData.length === 128) {
-        myFaceDescriptor = new Float32Array(rawData);
-        currentUserData = { id: u.id, face_scan_id: u.face_scan_id, name: `${u.first_name} ${u.last_name}` };
-      } else throw new Error("ข้อมูลใบหน้าของคุณไม่สมบูรณ์ กรุณาลงทะเบียนใหม่");
-
-      setStatus("กำลังโหลดระบบ AI...", 'text-blue-400');
-      if (!window.faceapi.nets.ssdMobilenetv1.isLoaded) {
-        const MODEL_URL = 'https:' + '//cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-        await Promise.all([
-          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-        ]);
-      }
-      setStatus("พร้อมแล้ว — กดเริ่มสแกน", 'text-emerald-400');
-      const btn = document.getElementById('btn-inapp-camera');
-      btn.disabled = false;
-      document.getElementById('btn-inapp-label').textContent = 'เริ่มสแกน';
-    } catch (e) {
-      console.error(e);
-      Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: e.message }).then(goBackToApp);
-    }
+  async function loadFaceScanConfig() {
+    try { const res = await fetch(`${SUPABASE_URL}/rest/v1/system_configs?config_key=eq.face_scan_testing_mode&select=config_value`, { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }); if (res.ok) { const d = await res.json(); if (d.length) INAPP_IS_TESTING = (String(d[0].config_value).trim().toLowerCase() === 'true'); } } catch (e) { console.warn(e); }
   }
 
-  // กดเริ่ม → เช็ก GPS → เปิดกล้อง → ลูปจับหน้า
-  function startScanFlow() {
-    if (!navigator.geolocation) {
-      if (INAPP_IS_TESTING) return beginCamera();
-      return Swal.fire({ icon: 'error', title: 'ไม่พบ GPS', text: 'อุปกรณ์ไม่รองรับพิกัด' }).then(goBackToApp);
-    }
-    setStatus("กำลังตรวจสอบพื้นที่ (GPS)...", 'text-amber-400');
+  function grab() {
+    const v = document.getElementById('cam'); if (!v.videoWidth) return null;
+    const c = document.createElement('canvas'); const ctx = c.getContext('2d');
+    let s = v.videoWidth > 720 ? 720 / v.videoWidth : 1; c.width = v.videoWidth * s; c.height = v.videoHeight * s;
+    if (ctx.filter !== undefined) ctx.filter = 'brightness(1.12) contrast(1.08)';
+    ctx.drawImage(v, 0, 0, c.width, c.height); if (ctx.filter !== undefined) ctx.filter = 'none';
+    return c;
+  }
+  async function detectDescriptor() {
+    const c = grab(); if (!c) return null;
+    const det = await faceapi.detectSingleFace(c, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 })).withFaceLandmarks().withFaceDescriptor();
+    return (det && det.detection.score >= 0.5) ? det.descriptor : null;
+  }
+  function avgDescriptor(list) { if (!list || !list.length) return null; const out = new Float32Array(128); list.forEach(d => { for (let i = 0; i < 128; i++) out[i] += d[i]; }); for (let i = 0; i < 128; i++) out[i] /= list.length; return out; }
+
+  function startFlow() {
+    setStep(1); document.getElementById('screen-start').classList.add('hidden');
+    if (!navigator.geolocation) { if (INAPP_IS_TESTING) return beginCamera(); return errBack("อุปกรณ์ไม่รองรับ GPS"); }
+    setHint("กำลังตรวจสอบพื้นที่ (GPS)..."); document.getElementById('hint-bar').classList.remove('hidden');
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const userLoc = { lat: position.coords.latitude, lng: position.coords.longitude };
-        if (!INAPP_IS_TESTING && !checkInAppGPS(userLoc, inAppSchoolPolygon)) {
-          Swal.fire({ icon: 'error', title: 'อยู่นอกพื้นที่', text: 'ไม่สามารถลงเวลาได้ คุณอยู่นอกพื้นที่โรงเรียน' }).then(goBackToApp);
-          return;
-        }
-        beginCamera();
-      },
-      () => { Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'กรุณาเปิด GPS และอนุญาตการเข้าถึงตำแหน่ง' }).then(goBackToApp); },
+      (pos) => { const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }; if (!INAPP_IS_TESTING && !inPoly(loc, inAppSchoolPolygon)) return errBack("คุณอยู่นอกพื้นที่โรงเรียน"); beginCamera(); },
+      () => { if (INAPP_IS_TESTING) beginCamera(); else errBack("กรุณาเปิด GPS และอนุญาตการเข้าถึงตำแหน่ง"); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }
+  function errBack(msg) { Swal.fire({ icon: 'error', title: 'ไม่สามารถทำรายการได้', text: msg, confirmButtonText: 'กลับ' }).then(goBackToApp); }
 
   async function beginCamera() {
     try {
       camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 } }, audio: false });
-      const video = document.getElementById('cam');
-      video.srcObject = camStream;
-      await video.play();
-      document.getElementById('inapp-camera-placeholder').classList.add('hidden');
-      video.classList.remove('hidden');
-      document.getElementById('cam-guide').classList.remove('hidden');
-      document.getElementById('cam-guide').classList.add('flex');
-      document.getElementById('inapp-scanning-badge').classList.remove('hidden');
-      setStatus("กำลังสแกน — หันหน้าเข้ากล้อง", 'text-emerald-400');
-      scanning = true;
-      detectLoop();
-    } catch (e) {
-      console.error(e);
-      Swal.fire({ icon: 'error', title: 'เปิดกล้องไม่ได้', text: 'กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์ แล้วลองใหม่' }).then(goBackToApp);
+      const v = document.getElementById('cam'); v.srcObject = camStream; await v.play();
+      v.classList.remove('hidden'); document.getElementById('guide').classList.remove('hidden'); document.getElementById('guide').classList.add('flex');
+      document.getElementById('hint-bar').classList.remove('hidden');
+      setStep(1); setHint("จัดใบหน้าให้อยู่ในวงกลม"); scanning = true; counting = false; loop();
+    } catch (e) { console.error(e); errBack("เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์"); }
+  }
+  function stopCamera() { scanning = false; counting = false; if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } }
+
+  async function loop() {
+    if (!scanning || counting) return;
+    const d = await detectDescriptor();
+    if (d) { startCountdown(); return; }
+    setHint("จัดใบหน้าให้อยู่ในวงกลม");
+    if (scanning && !counting) setTimeout(loop, 450);
+  }
+  async function startCountdown() {
+    counting = true; setStep(2);
+    const samples = [];
+    for (let n = 3; n >= 1; n--) {
+      const cd = document.getElementById('countdown'); cd.textContent = n; cd.classList.remove('pop'); void cd.offsetWidth; cd.classList.add('pop');
+      setHint("นิ่งไว้..."); await sleep(750);
+      const d = await detectDescriptor();
+      if (!d) { document.getElementById('countdown').textContent = ''; counting = false; setStep(1); setHint("จัดใบหน้าให้อยู่ในวงกลม"); if (scanning) loop(); return; }
+      samples.push(d);
     }
+    document.getElementById('countdown').textContent = ''; counting = false; scanning = false; setHint("กำลังตรวจสอบ...");
+    const probe = avgDescriptor(samples);
+    const distance = faceapi.euclideanDistance(probe, myFaceDescriptor);
+    if (distance <= 0.45) { recordInAppAttendance(); }
+    else { Toast.fire({ icon: 'error', title: 'ใบหน้าไม่ตรงกับผู้ใช้งาน' }); resumeScan(); }
   }
+  function resumeScan() { scanning = true; counting = false; setStep(1); setHint("จัดใบหน้าให้อยู่ในวงกลม"); loop(); }
 
-  function stopCamera() {
-    scanning = false;
-    if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-  }
-
-  function videoToCanvas() {
-    const video = document.getElementById('cam');
-    if (!video.videoWidth) return null;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const MAX_WIDTH = 600;
-    let scaleSize = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1;
-    canvas.width = video.videoWidth * scaleSize;
-    canvas.height = video.videoHeight * scaleSize;
-    if (ctx.filter !== undefined) ctx.filter = 'brightness(1.12) contrast(1.08)';
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    if (ctx.filter !== undefined) ctx.filter = 'none';
-    return canvas;
-  }
-
-  // มือถือ: สแกนหน้าเดียวจบ — รอจนเจอใบหน้าแรกที่ชัด แล้วประเมินครั้งเดียว (ไม่วนรัว ๆ)
-  async function detectLoop() {
-    if (!scanning) return;
-    if (!detectBusy) {
-      detectBusy = true;
-      try {
-        const canvas = videoToCanvas();
-        if (canvas) {
-          const det = await faceapi.detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 })).withFaceLandmarks().withFaceDescriptor();
-          if (det && det.detection.score >= 0.5) {
-            // เจอใบหน้าแล้ว → หยุดสแกน + ประเมินครั้งเดียว
-            scanning = false;
-            document.getElementById('inapp-scanning-badge').classList.add('hidden');
-            stopCamera();
-            const distance = faceapi.euclideanDistance(det.descriptor, myFaceDescriptor);
-            if (distance <= 0.45) {
-              setStatus("ยืนยันตัวตนสำเร็จ!", 'text-emerald-400');
-              recordInAppAttendance();
-            } else {
-              setStatus("ใบหน้าไม่ตรงกับผู้ใช้งาน", 'text-rose-400');
-              Swal.fire({
-                icon: 'error', title: 'ยืนยันตัวตนไม่สำเร็จ',
-                text: 'ใบหน้าที่สแกนไม่ตรงกับข้อมูลของคุณ',
-                showCancelButton: true, confirmButtonText: 'สแกนใหม่', cancelButtonText: 'ปิด',
-                confirmButtonColor: '#10b981'
-              }).then(r => { if (r.isConfirmed) beginCamera(); else goBackToApp(); });
-            }
-            detectBusy = false;
-            return;
-          }
-        }
-      } catch (e) { console.warn(e); }
-      detectBusy = false;
-    }
-    if (scanning) setTimeout(detectLoop, 500);
+  async function fetchMyFaceData() {
+    const userId = getHashParam('uid');
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}&select=id,face_scan_id,first_name,last_name,data_face_id`, { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
+    if (!res.ok) throw new Error("โหลดข้อมูลไม่ได้");
+    const userData = await res.json();
+    if (userData.length === 0 || !userData[0].data_face_id) { Swal.fire({ icon: 'warning', title: 'ยังไม่ได้ลงทะเบียน', text: 'กรุณาลงทะเบียนใบหน้าก่อน' }).then(goBackToApp); return false; }
+    const u = userData[0]; let r = u.data_face_id;
+    if (typeof r === 'string') { try { r = JSON.parse(r); } catch (e) {} }
+    if (r && typeof r === 'object' && !Array.isArray(r)) r = Object.values(r);
+    if (Array.isArray(r) && r.length === 128) { myFaceDescriptor = new Float32Array(r); currentUserData = { id: u.id, face_scan_id: u.face_scan_id, name: `${u.first_name} ${u.last_name}` }; return true; }
+    throw new Error("ข้อมูลใบหน้าไม่สมบูรณ์ กรุณาลงทะเบียนใหม่");
   }
 
   async function recordInAppAttendance() {
-    setStatus("กำลังประมวลผลเวลาทำงาน...", 'text-emerald-400');
-    const now = new Date();
-    const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
-    const scanDate = localNow.toISOString().split('T')[0];
-    const scanTime = localNow.toISOString().split('T')[1].substring(0, 8);
-
+    setHint("กำลังลงเวลา...");
+    const now = new Date(); const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    const scanDate = localNow.toISOString().split('T')[0]; const scanTime = localNow.toISOString().split('T')[1].substring(0, 8);
     const isGuard = currentUserData.face_scan_id && currentUserData.face_scan_id.startsWith('9');
     let scanAction = 'none';
     if (isGuard) scanAction = 'any';
-    else {
-      if (scanTime >= '04:00:00' && scanTime <= '14:00:00') scanAction = 'in';
-      else if (scanTime >= '14:00:01' && scanTime <= '23:59:59') scanAction = 'out';
-      else { Swal.fire({ icon: 'warning', title: 'นอกช่วงเวลา', text: 'อนุญาตให้สแกน (04:00-14:00) และ (14:01-23:59) เท่านั้น' }).then(goBackToApp); return; }
-    }
-
+    else { if (scanTime >= '04:00:00' && scanTime <= '14:00:00') scanAction = 'in'; else if (scanTime >= '14:00:01' && scanTime <= '23:59:59') scanAction = 'out'; else { Toast.fire({ icon: 'warning', title: 'ไม่อยู่ในช่วงเวลาสแกน' }); setTimeout(goBackToApp, 1800); return; } }
     try {
       const headers = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' };
       const [rawDaily, rawRef, rawRound, rawHol, rawDormHol, rawSpecial] = await Promise.all([
@@ -291,96 +203,67 @@
         fetch(`${SUPABASE_URL}/rest/v1/special_work_periods?start_date=lte.${scanDate}&end_date=gte.${scanDate}`, { headers })
       ]);
       const [dailyRecs, refLeaves, roundSets, holidays, dormHols, specialPeriods] = await Promise.all([
-        rawDaily.ok ? rawDaily.json() : [], rawRef.ok ? rawRef.json() : [],
-        rawRound.ok ? rawRound.json() : [], rawHol.ok ? rawHol.json() : [],
-        rawDormHol.ok ? rawDormHol.json() : [], rawSpecial.ok ? rawSpecial.json() : []
+        rawDaily.ok ? rawDaily.json() : [], rawRef.ok ? rawRef.json() : [], rawRound.ok ? rawRound.json() : [], rawHol.ok ? rawHol.json() : [], rawDormHol.ok ? rawDormHol.json() : [], rawSpecial.ok ? rawSpecial.json() : []
       ]);
-
-      const refData = refLeaves.length > 0 ? refLeaves[0] : null;
-      const dailyData = dailyRecs.length > 0 ? dailyRecs[0] : null;
-      const defaultLate = roundSets.length > 0 ? (roundSets[0].late_time || '08:00:00') : '08:00:00';
-      const defaultOff = roundSets.length > 0 ? (roundSets[0].off_work_time || '16:30:00') : '16:30:00';
-      const sp = specialPeriods.length > 0 ? specialPeriods[0] : null;
-      const LATE_TIME = sp ? sp.late_time : defaultLate;
-      const OFF_WORK_TIME = sp ? sp.off_work_time : defaultOff;
-
+      const refData = refLeaves[0] || null; const dailyData = dailyRecs[0] || null;
+      const defaultLate = roundSets.length ? (roundSets[0].late_time || '08:00:00') : '08:00:00';
+      const defaultOff = roundSets.length ? (roundSets[0].off_work_time || '16:30:00') : '16:30:00';
+      const sp = specialPeriods[0] || null;
+      const LATE_TIME = sp ? sp.late_time : defaultLate; const OFF_WORK_TIME = sp ? sp.off_work_time : defaultOff;
       const dObj = new Date(scanDate + "T00:00:00");
       const isPublicHol = (dObj.getDay() === 0 || dObj.getDay() === 6) || holidays.length > 0;
-      const isDormHol = dormHols.length > 0;
-      const isAnyHoliday = isPublicHol || isDormHol;
+      const isDormHol = dormHols.length > 0; const isAnyHoliday = isPublicHol || isDormHol;
       const holidayRemarkText = isDormHol && !isPublicHol ? 'วันหยุดครูหอพัก' : 'วันหยุด';
-
-      let timeIn = dailyData ? dailyData.time_in : null;
-      let timeOut = dailyData ? dailyData.time_out : null;
-      if (isGuard) {
-        if (!timeIn) { timeIn = scanTime; timeOut = scanTime; }
-        else { timeIn = timeIn < scanTime ? timeIn : scanTime; timeOut = timeOut > scanTime ? timeOut : scanTime; }
-      } else {
-        if (scanAction === 'in') timeIn = timeIn ? (timeIn < scanTime ? timeIn : scanTime) : scanTime;
-        else if (scanAction === 'out') { timeOut = timeOut ? (timeOut > scanTime ? timeOut : scanTime) : scanTime; if (!timeIn) timeIn = scanTime; }
-      }
-
-      const tInShort = timeIn ? timeIn.substring(0, 5) : '-';
-      const tOutShort = timeOut ? timeOut.substring(0, 5) : '-';
-      let recordType = isAnyHoliday ? 'holiday' : 'present';
-      let subType = 'no_data';
-      let remark = '-';
-      const isLate = timeIn > LATE_TIME;
-      const isLeaveEarly = (timeOut < OFF_WORK_TIME) && (timeIn !== timeOut);
-      const isSingleScan = (timeIn === timeOut || !timeOut);
-
+      let timeIn = dailyData ? dailyData.time_in : null; let timeOut = dailyData ? dailyData.time_out : null;
+      if (isGuard) { if (!timeIn) { timeIn = scanTime; timeOut = scanTime; } else { timeIn = timeIn < scanTime ? timeIn : scanTime; timeOut = timeOut > scanTime ? timeOut : scanTime; } }
+      else { if (scanAction === 'in') timeIn = timeIn ? (timeIn < scanTime ? timeIn : scanTime) : scanTime; else if (scanAction === 'out') { timeOut = timeOut ? (timeOut > scanTime ? timeOut : scanTime) : scanTime; if (!timeIn) timeIn = scanTime; } }
+      const tIn = timeIn ? timeIn.substring(0, 5) : '-'; const tOut = timeOut ? timeOut.substring(0, 5) : '-';
+      let recordType = isAnyHoliday ? 'holiday' : 'present'; let subType = 'no_data'; let remark = '-';
+      const isLate = timeIn > LATE_TIME; const isLeaveEarly = (timeOut < OFF_WORK_TIME) && (timeIn !== timeOut); const isSingleScan = (timeIn === timeOut || !timeOut);
       if (refData) {
-        if (refData.record_type === 'out') {
-          recordType = 'present';
-          if (isLate) { subType = 'late'; remark = `ออกนอกสถานศึกษา (มาสาย ${tInShort})`; }
-          else { subType = 'normal'; remark = `มาทำงานปกติ (ออกนอกฯ)`; }
-        } else { recordType = refData.record_type; subType = refData.sub_type || 'normal'; remark = refData.remark || 'มีเอกสารอ้างอิง'; }
+        if (refData.record_type === 'out') { recordType = 'present'; if (isLate) { subType = 'late'; remark = `ออกนอกสถานศึกษา (มาสาย ${tIn})`; } else { subType = 'normal'; remark = `มาทำงานปกติ (ออกนอกฯ)`; } }
+        else { recordType = refData.record_type; subType = refData.sub_type || 'normal'; remark = refData.remark || 'มีเอกสารอ้างอิง'; }
       } else {
         if (isAnyHoliday) { subType = 'work_on_holiday'; remark = `มาทำวันหยุด (${holidayRemarkText})`; }
-        else if (isSingleScan && scanAction === 'in') { subType = isLate ? 'late' : 'normal'; remark = isLate ? `มาสาย (เข้า: ${tInShort})` : `มาทำงานปกติ (เข้า: ${tInShort})`; }
-        else if (isLate && isLeaveEarly) { subType = 'late_and_early'; remark = `เข้า: ${tInShort} | ออก: ${tOutShort}`; }
-        else if (isLate) { subType = 'late'; remark = `เข้า: ${tInShort} | ออก: ${tOutShort}`; }
-        else if (isLeaveEarly) { subType = 'leave_early'; remark = `เข้า: ${tInShort} | ออก: ${tOutShort}`; }
-        else { subType = 'normal'; remark = `เข้า: ${tInShort} | ออก: ${tOutShort}`; }
+        else if (isSingleScan && scanAction === 'in') { subType = isLate ? 'late' : 'normal'; remark = isLate ? `มาสาย (เข้า: ${tIn})` : `มาทำงานปกติ (เข้า: ${tIn})`; }
+        else if (isLate && isLeaveEarly) { subType = 'late_and_early'; remark = `เข้า: ${tIn} | ออก: ${tOut}`; }
+        else if (isLate) { subType = 'late'; remark = `เข้า: ${tIn} | ออก: ${tOut}`; }
+        else if (isLeaveEarly) { subType = 'leave_early'; remark = `เข้า: ${tIn} | ออก: ${tOut}`; }
+        else { subType = 'normal'; remark = `เข้า: ${tIn} | ออก: ${tOut}`; }
       }
-      if (isGuard && isSingleScan) { recordType = 'present'; subType = 'evening_shift'; remark = `เข้างานช่วงเย็น [เวลา: ${tInShort}]`; }
-
-      const payloadLog = { machine_id: 'GitHubPages_Scan', face_scan_id: currentUserData.face_scan_id, scan_date: scanDate, scan_time: scanTime, original_log: `Web Live Match (${scanAction})`, status: 'processed' };
+      if (isGuard && isSingleScan) { recordType = 'present'; subType = 'evening_shift'; remark = `เข้างานช่วงเย็น [เวลา: ${tIn}]`; }
+      const payloadLog = { machine_id: 'GitHubPages_Scan', face_scan_id: currentUserData.face_scan_id, scan_date: scanDate, scan_time: scanTime, original_log: `Live Match (${scanAction})`, status: 'processed' };
       const payloadDaily = { user_id: currentUserData.id, attendance_date: scanDate, time_in: timeIn, time_out: timeOut, record_type: recordType, sub_type: subType, remark: remark };
       const urlDaily = dailyData ? `${SUPABASE_URL}/rest/v1/daily_attendance_records?id=eq.${dailyData.id}` : `${SUPABASE_URL}/rest/v1/daily_attendance_records`;
-
       await Promise.all([
         fetch(`${SUPABASE_URL}/rest/v1/raw_attendance_logs`, { method: 'POST', headers, body: JSON.stringify(payloadLog) }),
         fetch(urlDaily, { method: dailyData ? 'PATCH' : 'POST', headers, body: JSON.stringify(payloadDaily) })
       ]);
-
-      document.getElementById('cam').classList.add('hidden');
-      document.getElementById('cam-guide').classList.add('hidden');
-      document.getElementById('inapp-result-text').textContent = `${currentUserData.name}\n${remark}`;
-      const resultEl = document.getElementById('inapp-result');
-      resultEl.classList.remove('hidden'); resultEl.classList.add('flex');
-      if (window.lucide) lucide.createIcons();
-    } catch (e) {
-      console.error(e);
-      Swal.fire({ icon: 'error', title: 'การบันทึกข้อมูลล้มเหลว', text: 'สแกนหน้าผ่านแล้ว แต่ไม่สามารถบันทึกข้อมูลลงระบบได้' }).then(goBackToApp);
-    }
+      setStep(3);
+      openSheet('ลงเวลาสำเร็จ', `
+        <div class="text-center py-2">
+          <div class="w-20 h-20 mx-auto bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mb-4 pop"><i data-lucide="check" class="w-10 h-10 text-emerald-400"></i></div>
+          <p class="font-black text-lg">${currentUserData.name}</p>
+          <p class="text-slate-300 text-sm mt-1">${remark}</p>
+          <button onclick="goBackToApp()" class="w-full mt-6 py-3.5 bg-emerald-600 rounded-2xl font-bold active:scale-95">เสร็จสิ้น</button>
+        </div>`);
+      setTimeout(goBackToApp, 2500);
+    } catch (e) { console.error(e); Toast.fire({ icon: 'error', title: 'บันทึกข้อมูลล้มเหลว' }); setTimeout(goBackToApp, 1800); }
   }
 
   async function init() {
-    if (window.lucide) lucide.createIcons();
+    if (window.lucide) lucide.createIcons(); setStep(0);
     await loadFaceScanConfig();
-    if (!INAPP_IS_TESTING && !isMobileOrTablet()) {
-      document.getElementById('inapp-camera-placeholder').classList.add('hidden');
-      const b = document.getElementById('device-block');
-      b.classList.remove('hidden'); b.classList.add('flex');
-      setStatus("อุปกรณ์ไม่รองรับ", 'text-rose-400');
-      return;
-    }
-    if (!getHashParam('uid')) {
-      Swal.fire({ icon: 'error', title: 'ลิงก์ไม่ถูกต้อง', text: 'ไม่พบรหัสผู้ใช้ กรุณาเปิดจากแอปอีกครั้ง' });
-      return;
-    }
-    await prepareScan();
+    if (!INAPP_IS_TESTING && !isMobileOrTablet()) { document.getElementById('screen-start').classList.add('hidden'); const b = document.getElementById('screen-block'); b.classList.remove('hidden'); b.classList.add('flex'); return; }
+    if (!getHashParam('uid')) { Swal.fire({ icon: 'error', title: 'ลิงก์ไม่ถูกต้อง', text: 'ไม่พบรหัสผู้ใช้ กรุณาเปิดจากแอป' }); return; }
+    try {
+      if (!window.faceapi.nets.ssdMobilenetv1.isLoaded) {
+        const M = 'https:' + '//cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+        await Promise.all([faceapi.nets.ssdMobilenetv1.loadFromUri(M), faceapi.nets.faceLandmark68Net.loadFromUri(M), faceapi.nets.faceRecognitionNet.loadFromUri(M)]);
+      }
+      const ok = await fetchMyFaceData(); if (!ok) return;
+    } catch (e) { console.error(e); Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: e.message }).then(goBackToApp); return; }
+    const b = document.getElementById('btn-start'); b.disabled = false; b.innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> <span>เริ่มสแกน</span>'; if (window.lucide) lucide.createIcons();
   }
   window.addEventListener('load', init);
 </script>

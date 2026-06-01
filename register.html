@@ -9,224 +9,189 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style> * { font-family: 'Sarabun', sans-serif; } </style>
+  <style>
+    * { font-family: 'Sarabun', sans-serif; }
+    .sheet { transition: transform .3s cubic-bezier(.4,0,.2,1); }
+    .sheet.hidden-sheet { transform: translateY(110%); }
+    @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.1); opacity: 1 } 100% { transform: scale(1) } }
+    .pop { animation: pop .35s ease-out; }
+  </style>
 </head>
-<body class="bg-slate-900">
+<body class="bg-slate-900 text-white overflow-hidden">
 
-<div class="fixed inset-0 z-[100] w-full h-full bg-slate-900 flex flex-col">
-  <div class="w-full p-5 flex justify-between items-center bg-slate-900/80 backdrop-blur-md relative z-30">
-    <div>
-      <h2 class="text-white font-black text-lg">ลงทะเบียนใบหน้า</h2>
-      <p id="reg-status-text" class="text-amber-400 text-xs font-bold animate-pulse">กำลังเตรียมระบบ...</p>
+<div class="fixed inset-0 flex flex-col">
+  <div class="px-5 pt-5 pb-3 bg-slate-900/90 backdrop-blur-md z-30 shrink-0">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-black text-base">ลงทะเบียนใบหน้า</h2>
+      <button onclick="goBackToApp()" class="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
     </div>
-    <button onclick="goBackToApp()" class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-rose-500 transition-colors">
-      <i data-lucide="x" class="w-5 h-5"></i>
-    </button>
+    <div id="stepper" class="flex items-center gap-1.5"></div>
   </div>
 
-  <div class="relative w-full h-full flex-1 flex items-center justify-center bg-black overflow-hidden">
-    <video id="cam" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1] hidden"></video>
-    <img id="reg-face-preview" class="w-full h-full object-contain transform scale-x-[-1] hidden" alt="Preview">
-    <div id="cam-guide" class="absolute inset-0 hidden items-center justify-center pointer-events-none">
-      <div class="w-56 h-56 border-2 border-indigo-400/70 rounded-full shadow-[0_0_40px_rgba(99,102,241,0.4)]"></div>
-    </div>
-
-    <div id="reg-camera-placeholder" class="text-center flex flex-col items-center justify-center px-6">
-      <div class="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-4 border border-white/10">
-        <i data-lucide="scan-face" class="w-10 h-10 text-indigo-400"></i>
+  <div class="relative flex-1 bg-black overflow-hidden flex items-center justify-center">
+    <video id="cam" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover transform scale-x-[-1] hidden"></video>
+    <img id="snap" class="absolute inset-0 w-full h-full object-contain transform scale-x-[-1] hidden" alt="">
+    <div id="guide" class="absolute inset-0 hidden items-center justify-center pointer-events-none">
+      <div class="relative w-64 h-64 rounded-full border-[3px] border-indigo-400/70 shadow-[0_0_50px_rgba(99,102,241,0.45)] flex items-center justify-center">
+        <span id="countdown" class="text-7xl font-black text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]"></span>
       </div>
-      <p class="text-slate-400 text-sm font-medium mb-6">กดเริ่ม ระบบจะเปิดกล้องและจับใบหน้าให้อัตโนมัติ</p>
-      <button onclick="startRegisterFlow()" id="btn-reg-start" disabled class="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-full font-bold shadow-lg shadow-indigo-500/30 flex items-center gap-2 active:scale-95 transition-transform">
-        <i data-lucide="camera" class="w-5 h-5"></i> <span id="btn-reg-label">กำลังเตรียม...</span>
+    </div>
+
+    <div id="screen-start" class="relative z-10 text-center px-8 flex flex-col items-center">
+      <div class="w-24 h-24 bg-indigo-500/20 border border-indigo-500/30 rounded-full flex items-center justify-center mb-5"><i data-lucide="scan-face" class="w-12 h-12 text-indigo-400"></i></div>
+      <p class="text-slate-300 text-sm mb-7 max-w-xs">กดเริ่ม จัดใบหน้าตรงในวงกลม ระบบจะนับถอยหลังแล้วเก็บโครงหน้าอัตโนมัติ (ถ่าย 3 จังหวะ เฉลี่ยให้แม่นขึ้น)</p>
+      <button id="btn-start" onclick="beginCamera()" disabled class="px-10 py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-full font-bold shadow-lg shadow-indigo-500/30 flex items-center gap-2 active:scale-95 transition-all">
+        <i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> <span id="btn-start-label">กำลังเตรียม...</span>
       </button>
     </div>
 
-    <div id="reg-scanning-badge" class="absolute bottom-28 left-1/2 -translate-x-1/2 hidden">
-      <span class="text-xs font-bold text-white bg-indigo-600/90 px-4 py-2 rounded-full flex items-center gap-2 shadow-lg">
-        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> กำลังจับใบหน้า...
-      </span>
+    <div id="screen-block" class="relative z-20 text-center px-8 hidden flex-col items-center">
+      <div class="w-24 h-24 bg-rose-500/20 border border-rose-500/40 rounded-full flex items-center justify-center mb-5"><i data-lucide="smartphone" class="w-12 h-12 text-rose-400"></i></div>
+      <h3 class="font-black text-xl">กรุณาเปิดจากมือถือหรือ iPad</h3>
+      <p class="text-slate-400 text-sm mt-2">ระบบรองรับเฉพาะโทรศัพท์มือถือหรือแท็บเล็ตเท่านั้น</p>
     </div>
 
-    <div id="device-block" class="absolute inset-0 bg-slate-900 flex-col items-center justify-center hidden px-8 z-50 text-center">
-      <div class="w-24 h-24 bg-rose-500/20 rounded-full flex items-center justify-center mb-5 border border-rose-500/40">
-        <i data-lucide="smartphone" class="w-12 h-12 text-rose-400"></i>
-      </div>
-      <h3 class="text-white font-black text-xl">กรุณาเปิดจากมือถือหรือ iPad</h3>
-      <p class="text-slate-400 text-sm mt-2">ระบบลงทะเบียนใบหน้ารองรับเฉพาะโทรศัพท์มือถือหรือแท็บเล็ตเท่านั้น</p>
+    <div id="hint-bar" class="absolute bottom-5 left-1/2 -translate-x-1/2 hidden">
+      <span id="hint-text" class="text-sm font-bold bg-black/55 backdrop-blur px-5 py-2.5 rounded-full">จัดใบหน้าให้อยู่ในวงกลม</span>
     </div>
   </div>
+</div>
 
-  <div class="absolute bottom-0 left-0 w-full bg-slate-900/90 backdrop-blur-md p-6 rounded-t-3xl z-30 border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-    <div id="reg-action-area" class="hidden flex-col gap-3">
-      <button onclick="saveFaceRegistration()" class="w-full py-3.5 bg-[#00B900] hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/30 active:scale-95 transition-transform">
-        <i data-lucide="save" class="w-5 h-5"></i> ยืนยันบันทึกใบหน้า
-      </button>
-      <button onclick="restartRegisterScan()" class="w-full py-3 bg-slate-800 border border-white/20 text-white rounded-xl text-sm font-bold flex justify-center items-center gap-2 hover:bg-slate-700 active:scale-95 transition-transform">
-        <i data-lucide="refresh-cw" class="w-4 h-4"></i> สแกนใหม่อีกครั้ง
-      </button>
-    </div>
-  </div>
+<div id="sheet-backdrop" class="fixed inset-0 bg-black/50 z-40 hidden"></div>
+<div id="sheet" class="sheet hidden-sheet fixed bottom-0 left-0 right-0 z-50 bg-slate-800 rounded-t-3xl border-t border-white/10 shadow-2xl flex flex-col">
+  <div class="flex justify-center pt-3"><div class="w-12 h-1.5 bg-white/20 rounded-full"></div></div>
+  <div class="px-5 pt-2 pb-3 flex items-center justify-between"><h3 id="sheet-title" class="font-black text-base"></h3></div>
+  <div id="sheet-body" class="px-5 pb-7"></div>
 </div>
 
 <script>
   const SUPABASE_URL = 'https://lykcbppxbpnkipjhnqyk.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5a2NicHB4YnBua2lwamhucXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUwOTEsImV4cCI6MjA5MjY3MTA5MX0.bstoZYd8f0vC3FKnAr15S5AKuQtiT-wD019rc96e21k';
+  const Toast = Swal.mixin({ toast: true, position: 'bottom', showConfirmButton: false, timer: 2600, timerProgressBar: true });
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   let INAPP_IS_TESTING = false;
-  let tempRegisterDescriptor = null;
-  let camStream = null, scanning = false, detectBusy = false;
+  let camStream = null, scanning = false, counting = false;
+  let pendingDescriptor = null;
+  const STEPS = ['เริ่ม', 'จัดใบหน้า', 'ยืนยัน', 'สำเร็จ'];
 
   function getHashParam(k) { return new URLSearchParams((location.hash || '').replace(/^#/, '')).get(k); }
+  function setStep(active) {
+    document.getElementById('stepper').innerHTML = STEPS.map((s, i) => {
+      const done = i < active, cur = i === active;
+      const dot = done ? 'bg-indigo-500 text-white' : cur ? 'bg-indigo-400 text-slate-900' : 'bg-white/10 text-slate-400';
+      const line = i < STEPS.length - 1 ? `<div class="flex-1 h-0.5 ${i < active ? 'bg-indigo-500' : 'bg-white/10'}"></div>` : '';
+      return `<div class="flex items-center gap-1.5"><div class="w-6 h-6 rounded-full ${dot} text-[11px] font-black flex items-center justify-center shrink-0">${done ? '✓' : (i + 1)}</div><span class="text-[11px] font-bold ${cur ? 'text-white' : 'text-slate-500'} hidden xs:inline">${s}</span></div>${line}`;
+    }).join('');
+  }
+  function setHint(t) { document.getElementById('hint-text').textContent = t; }
   function isMobileOrTablet() {
-    const ua = navigator.userAgent || '';
-    const iPadOS13 = navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
-    const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);
-    return mobileUA || iPadOS13;
+    const ua = navigator.userAgent || ''; const iPadOS13 = navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua) || iPadOS13;
   }
-  function setStatus(txt, cls) { const el = document.getElementById('reg-status-text'); el.textContent = txt; el.className = (cls || 'text-amber-400') + ' text-xs font-bold'; }
-  function goBackToApp() {
-    stopCamera();
-    try { window.close(); } catch (e) {}
-    setTimeout(() => { document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-family:Sarabun,sans-serif;text-align:center;padding:24px">เสร็จสิ้น — กลับไปที่แอป HR ได้เลยครับ<br>(ปิดแท็บนี้)</div>'; }, 300);
-  }
+  function goBackToApp() { stopCamera(); try { window.close(); } catch (e) {} setTimeout(() => { document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-family:Sarabun;text-align:center;padding:24px">เสร็จสิ้น — กลับไปที่แอป HR ได้เลยครับ<br>(ปิดแท็บนี้)</div>'; }, 300); }
+  function openSheet(title, html) { document.getElementById('sheet-title').textContent = title; document.getElementById('sheet-body').innerHTML = html; document.getElementById('sheet-backdrop').classList.remove('hidden'); document.getElementById('sheet').classList.remove('hidden-sheet'); if (window.lucide) lucide.createIcons(); }
+  function closeSheet() { document.getElementById('sheet').classList.add('hidden-sheet'); document.getElementById('sheet-backdrop').classList.add('hidden'); }
 
   async function loadFaceScanConfig() {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/system_configs?config_key=eq.face_scan_testing_mode&select=config_value`, {
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-      });
-      if (res.ok) { const d = await res.json(); if (d.length) INAPP_IS_TESTING = (String(d[0].config_value).trim().toLowerCase() === 'true'); }
-    } catch (e) { console.warn(e); }
+    try { const res = await fetch(`${SUPABASE_URL}/rest/v1/system_configs?config_key=eq.face_scan_testing_mode&select=config_value`, { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }); if (res.ok) { const d = await res.json(); if (d.length) INAPP_IS_TESTING = (String(d[0].config_value).trim().toLowerCase() === 'true'); } } catch (e) { console.warn(e); }
   }
 
-  async function prepareRegister() {
-    setStatus("กำลังโหลด AI Model...", 'text-blue-400');
-    if (!window.faceapi.nets.ssdMobilenetv1.isLoaded) {
-      const MODEL_URL = 'https:' + '//cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-      await Promise.all([
-        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-      ]);
-    }
-    setStatus("พร้อมแล้ว — กดเริ่ม", 'text-emerald-400');
-    document.getElementById('btn-reg-start').disabled = false;
-    document.getElementById('btn-reg-label').textContent = 'เริ่ม';
+  function grab() {
+    const v = document.getElementById('cam'); if (!v.videoWidth) return null;
+    const c = document.createElement('canvas'); const ctx = c.getContext('2d');
+    let s = v.videoWidth > 720 ? 720 / v.videoWidth : 1; c.width = v.videoWidth * s; c.height = v.videoHeight * s;
+    if (ctx.filter !== undefined) ctx.filter = 'brightness(1.12) contrast(1.08)';
+    ctx.drawImage(v, 0, 0, c.width, c.height); if (ctx.filter !== undefined) ctx.filter = 'none';
+    return c;
   }
-
-  function startRegisterFlow() { beginCamera(); }
+  async function detectFull() {
+    const c = grab(); if (!c) return null;
+    const det = await faceapi.detectSingleFace(c, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 })).withFaceLandmarks().withFaceDescriptor();
+    return (det && det.detection.score >= 0.55) ? { descriptor: det.descriptor, canvas: c } : null;
+  }
+  function avgDescriptor(list) { if (!list || !list.length) return null; const out = new Float32Array(128); list.forEach(d => { for (let i = 0; i < 128; i++) out[i] += d[i]; }); for (let i = 0; i < 128; i++) out[i] /= list.length; return out; }
 
   async function beginCamera() {
+    setStep(1); document.getElementById('screen-start').classList.add('hidden');
+    document.getElementById('snap').classList.add('hidden');
     try {
-      tempRegisterDescriptor = null;
-      document.getElementById('reg-action-area').classList.add('hidden');
-      document.getElementById('reg-action-area').classList.remove('flex');
-      document.getElementById('reg-face-preview').classList.add('hidden');
       camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 } }, audio: false });
-      const video = document.getElementById('cam');
-      video.srcObject = camStream;
-      await video.play();
-      document.getElementById('reg-camera-placeholder').classList.add('hidden');
-      video.classList.remove('hidden');
-      document.getElementById('cam-guide').classList.remove('hidden');
-      document.getElementById('cam-guide').classList.add('flex');
-      document.getElementById('reg-scanning-badge').classList.remove('hidden');
-      setStatus("กำลังจับใบหน้า — หันหน้าตรงเข้ากล้อง", 'text-indigo-400');
-      scanning = true;
-      detectLoop();
-    } catch (e) {
-      console.error(e);
-      Swal.fire({ icon: 'error', title: 'เปิดกล้องไม่ได้', text: 'กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์ แล้วลองใหม่' }).then(goBackToApp);
+      const v = document.getElementById('cam'); v.srcObject = camStream; await v.play();
+      v.classList.remove('hidden'); document.getElementById('guide').classList.remove('hidden'); document.getElementById('guide').classList.add('flex');
+      document.getElementById('hint-bar').classList.remove('hidden');
+      setHint("จัดใบหน้าตรงให้อยู่ในวงกลม"); scanning = true; counting = false; loop();
+    } catch (e) { console.error(e); Swal.fire({ icon: 'error', title: 'เปิดกล้องไม่ได้', text: 'กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์' }).then(goBackToApp); }
+  }
+  function stopCamera() { scanning = false; counting = false; if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } }
+
+  async function loop() {
+    if (!scanning || counting) return;
+    const r = await detectFull();
+    if (r) { startCountdown(); return; }
+    setHint("จัดใบหน้าตรงให้อยู่ในวงกลม");
+    if (scanning && !counting) setTimeout(loop, 450);
+  }
+  async function startCountdown() {
+    counting = true; setStep(1);
+    const samples = []; let lastCanvas = null;
+    for (let n = 3; n >= 1; n--) {
+      const cd = document.getElementById('countdown'); cd.textContent = n; cd.classList.remove('pop'); void cd.offsetWidth; cd.classList.add('pop');
+      setHint("นิ่งไว้..."); await sleep(750);
+      const r = await detectFull();
+      if (!r) { document.getElementById('countdown').textContent = ''; counting = false; setHint("จัดใบหน้าตรงให้อยู่ในวงกลม"); if (scanning) loop(); return; }
+      samples.push(r.descriptor); lastCanvas = r.canvas;
     }
+    document.getElementById('countdown').textContent = ''; counting = false; scanning = false;
+    pendingDescriptor = avgDescriptor(samples);
+    // freeze snapshot
+    const snap = document.getElementById('snap'); snap.src = lastCanvas.toDataURL('image/jpeg', 0.9); snap.classList.remove('hidden');
+    document.getElementById('cam').classList.add('hidden'); document.getElementById('guide').classList.add('hidden'); document.getElementById('hint-bar').classList.add('hidden');
+    stopCamera();
+    setStep(2);
+    openSheet('ยืนยันการลงทะเบียน', `
+      <p class="text-sm text-slate-300 text-center mb-4">ระบบเก็บโครงหน้าเรียบร้อย กดยืนยันเพื่อบันทึก</p>
+      <button onclick="saveFaceRegistration()" class="w-full py-3.5 bg-[#00B900] hover:bg-emerald-600 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 mb-2.5"><i data-lucide="save" class="w-5 h-5"></i> ยืนยันบันทึกใบหน้า</button>
+      <button onclick="closeSheet(); restart();" class="w-full py-3 bg-white/5 border border-white/10 rounded-2xl font-bold text-slate-300 flex items-center justify-center gap-2 active:scale-95"><i data-lucide="refresh-cw" class="w-4 h-4"></i> สแกนใหม่</button>`);
   }
-
-  function stopCamera() {
-    scanning = false;
-    if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-  }
-
-  function videoToCanvas() {
-    const video = document.getElementById('cam');
-    if (!video.videoWidth) return null;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const MAX_WIDTH = 600;
-    let s = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1;
-    canvas.width = video.videoWidth * s;
-    canvas.height = video.videoHeight * s;
-    if (ctx.filter !== undefined) ctx.filter = 'brightness(1.12) contrast(1.08)';
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    if (ctx.filter !== undefined) ctx.filter = 'none';
-    return canvas;
-  }
-
-  async function detectLoop() {
-    if (!scanning) return;
-    if (!detectBusy) {
-      detectBusy = true;
-      try {
-        const canvas = videoToCanvas();
-        if (canvas) {
-          const det = await faceapi.detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 })).withFaceLandmarks().withFaceDescriptor();
-          if (det && det.detection.score >= 0.6) {
-            // จับได้ชัด → เก็บ descriptor + หยุดกล้อง + ค้างภาพ
-            tempRegisterDescriptor = det.descriptor;
-            scanning = false;
-            document.getElementById('reg-face-preview').src = canvas.toDataURL('image/jpeg', 0.9);
-            document.getElementById('reg-face-preview').classList.remove('hidden');
-            document.getElementById('cam').classList.add('hidden');
-            document.getElementById('cam-guide').classList.add('hidden');
-            document.getElementById('reg-scanning-badge').classList.add('hidden');
-            stopCamera();
-            setStatus("จับใบหน้าสำเร็จ! กดยืนยันเพื่อบันทึก", 'text-emerald-400');
-            const aa = document.getElementById('reg-action-area');
-            aa.classList.remove('hidden'); aa.classList.add('flex');
-            detectBusy = false;
-            return;
-          }
-        }
-      } catch (e) { console.warn(e); }
-      detectBusy = false;
-    }
-    setTimeout(detectLoop, 700);
-  }
-
-  function restartRegisterScan() { beginCamera(); }
+  function restart() { document.getElementById('snap').classList.add('hidden'); pendingDescriptor = null; beginCamera(); }
 
   async function saveFaceRegistration() {
-    if (!tempRegisterDescriptor) return;
+    if (!pendingDescriptor) return;
+    closeSheet();
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-      const userId = getHashParam('uid');
-      const token = getHashParam('token');
-      const descriptorArray = Array.from(tempRegisterDescriptor);
+      const userId = getHashParam('uid'); const token = getHashParam('token');
       const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token || SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ data_face_id: descriptorArray })
+        body: JSON.stringify({ data_face_id: Array.from(pendingDescriptor) })
       });
-      if (!res.ok) throw new Error(await res.text() || "ไม่สามารถอัปเดตฐานข้อมูลได้");
-      Swal.fire({ icon: 'success', title: 'ลงทะเบียนสำเร็จ', text: 'บันทึกข้อมูลใบหน้าเรียบร้อยแล้ว ตอนนี้สแกนหน้าเพื่อลงเวลาได้เลยครับ', confirmButtonColor: '#10b981' }).then(goBackToApp);
-    } catch (e) {
-      console.error(e);
-      Swal.fire('ข้อผิดพลาด', e.message || 'บันทึกข้อมูลไม่สำเร็จ', 'error');
-    }
+      if (!res.ok) throw new Error(await res.text() || "อัปเดตฐานข้อมูลไม่ได้");
+      setStep(3);
+      Swal.close();
+      openSheet('ลงทะเบียนสำเร็จ', `
+        <div class="text-center py-2">
+          <div class="w-20 h-20 mx-auto bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mb-4 pop"><i data-lucide="check" class="w-10 h-10 text-emerald-400"></i></div>
+          <p class="text-slate-200 text-sm">บันทึกใบหน้าเรียบร้อย สแกนลงเวลาได้เลย</p>
+          <button onclick="goBackToApp()" class="w-full mt-6 py-3.5 bg-emerald-600 rounded-2xl font-bold active:scale-95">เสร็จสิ้น</button>
+        </div>`);
+      setTimeout(goBackToApp, 2500);
+    } catch (e) { console.error(e); Swal.fire('ข้อผิดพลาด', e.message || 'บันทึกไม่สำเร็จ', 'error'); }
   }
 
   async function init() {
-    if (window.lucide) lucide.createIcons();
+    if (window.lucide) lucide.createIcons(); setStep(0);
     await loadFaceScanConfig();
-    if (!INAPP_IS_TESTING && !isMobileOrTablet()) {
-      document.getElementById('reg-camera-placeholder').classList.add('hidden');
-      const b = document.getElementById('device-block'); b.classList.remove('hidden'); b.classList.add('flex');
-      setStatus("อุปกรณ์ไม่รองรับ", 'text-rose-400');
-      return;
-    }
-    if (!getHashParam('uid') || !getHashParam('token')) {
-      Swal.fire({ icon: 'error', title: 'ลิงก์ไม่ถูกต้อง', text: 'ไม่พบข้อมูลยืนยันตัวตน กรุณาเปิดจากแอปอีกครั้ง' });
-      return;
-    }
-    await prepareRegister();
+    if (!INAPP_IS_TESTING && !isMobileOrTablet()) { document.getElementById('screen-start').classList.add('hidden'); const b = document.getElementById('screen-block'); b.classList.remove('hidden'); b.classList.add('flex'); return; }
+    if (!getHashParam('uid') || !getHashParam('token')) { Swal.fire({ icon: 'error', title: 'ลิงก์ไม่ถูกต้อง', text: 'ไม่พบข้อมูลยืนยันตัวตน กรุณาเปิดจากแอป' }); return; }
+    try {
+      if (!window.faceapi.nets.ssdMobilenetv1.isLoaded) {
+        const M = 'https:' + '//cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+        await Promise.all([faceapi.nets.ssdMobilenetv1.loadFromUri(M), faceapi.nets.faceLandmark68Net.loadFromUri(M), faceapi.nets.faceRecognitionNet.loadFromUri(M)]);
+      }
+    } catch (e) { console.warn(e); }
+    const b = document.getElementById('btn-start'); b.disabled = false; b.innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> <span>เริ่ม</span>'; if (window.lucide) lucide.createIcons();
   }
   window.addEventListener('load', init);
 </script>

@@ -214,7 +214,7 @@
   function grab() {
     const v = document.getElementById('cam'); if (!v.videoWidth) return null;
     const c = document.createElement('canvas'); const ctx = c.getContext('2d');
-    let s = v.videoWidth > 600 ? 600 / v.videoWidth : 1; c.width = v.videoWidth * s; c.height = v.videoHeight * s;
+    let s = v.videoWidth > 720 ? 720 / v.videoWidth : 1; c.width = v.videoWidth * s; c.height = v.videoHeight * s;
     if (ctx.filter !== undefined) ctx.filter = 'brightness(1.12) contrast(1.08)';
     ctx.drawImage(v, 0, 0, c.width, c.height); if (ctx.filter !== undefined) ctx.filter = 'none';
     return c;
@@ -223,6 +223,14 @@
     const c = grab(); if (!c) return null;
     const det = await faceapi.detectSingleFace(c, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 })).withFaceLandmarks().withFaceDescriptor();
     return (det && det.detection.score >= 0.5) ? det.descriptor : null;
+  }
+  // เฉลี่ย descriptor หลายเฟรม → ลด noise เพิ่มความแม่นยำ
+  function avgDescriptor(list) {
+    if (!list || !list.length) return null;
+    const out = new Float32Array(128);
+    list.forEach(d => { for (let i = 0; i < 128; i++) out[i] += d[i]; });
+    for (let i = 0; i < 128; i++) out[i] /= list.length;
+    return out;
   }
 
   // รอจนเจอใบหน้า → นับถอยหลัง 3-2-1 (เช็คว่าหน้ายังอยู่ทุกวินาที) → ประเมิน
@@ -235,7 +243,7 @@
   }
   async function startCountdown() {
     counting = true; setStep(2);
-    let last = null;
+    const samples = [];
     for (let n = 3; n >= 1; n--) {
       document.getElementById('countdown').textContent = n;
       document.getElementById('countdown').classList.remove('pop'); void document.getElementById('countdown').offsetWidth; document.getElementById('countdown').classList.add('pop');
@@ -248,11 +256,11 @@
         if (scanning) loop();
         return;
       }
-      last = d;
+      samples.push(d);
     }
     document.getElementById('countdown').textContent = '';
     counting = false; scanning = false; setStep(2); setHint("กำลังตรวจสอบ...");
-    evaluate(last);
+    evaluate(avgDescriptor(samples)); // เฉลี่ย 3 เฟรม
   }
 
   function evaluate(descriptor) {
