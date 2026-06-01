@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>เครื่องสแกนใบหน้าลงเวลา</title>
+  <title>ระบบลงเวลาด้วยใบหน้า</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -11,99 +11,129 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Sarabun', sans-serif; }
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    body { background: linear-gradient(180deg, #0b1220, #0f172a 40%, #0b1220); }
+    .sheet { transition: transform .35s cubic-bezier(.4,0,.2,1); }
+    .sheet.down { transform: translateY(120%); }
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 9999px; }
+    @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.12); opacity: 1 } 100% { transform: scale(1) } }
+    .pop { animation: pop .4s ease-out; }
+    @keyframes ringpulse { 0%,100% { box-shadow: 0 0 60px rgba(16,185,129,.35) } 50% { box-shadow: 0 0 90px rgba(16,185,129,.6) } }
+    .ringpulse { animation: ringpulse 2s ease-in-out infinite; }
   </style>
 </head>
-<body class="bg-slate-950">
+<body class="text-white overflow-hidden h-screen">
 
-<div class="fixed inset-0 bg-slate-950 z-[100] flex flex-col items-center justify-start">
-  <div class="w-full p-5 flex justify-between items-center bg-slate-950/80 border-b border-white/5 backdrop-blur-md absolute top-0 z-30">
-    <div class="flex flex-col gap-1">
-      <h2 class="text-white font-black text-base tracking-wide">ระบบสแกนใบหน้าลงเวลา</h2>
-      <span id="scanner-status-text" class="text-[10px] font-black tracking-wide uppercase px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full self-start animate-pulse">กำลังเตรียมระบบ...</span>
-    </div>
-    <button onclick="location.reload()" class="w-10 h-10 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-rose-500 hover:border-rose-500 transition-all active:scale-90">
-      <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-    </button>
-  </div>
-
-  <div class="relative w-full h-full flex items-center justify-center bg-black overflow-hidden mt-16 pb-32">
-    <video id="cam" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1] hidden"></video>
-    <div id="cam-guide" class="absolute inset-0 hidden items-center justify-center pointer-events-none">
-      <div class="w-60 h-60 border-2 border-emerald-400/70 rounded-full shadow-[0_0_40px_rgba(16,185,129,0.4)]"></div>
-    </div>
-
-    <div id="camera-placeholder" class="text-center flex flex-col items-center justify-center px-6 w-full max-w-sm">
-      <div class="relative w-40 h-40 mb-8 flex items-center justify-center">
-        <div class="absolute inset-0 rounded-full border border-emerald-500/10 animate-ping"></div>
-        <div class="absolute inset-4 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center shadow-2xl">
-          <i data-lucide="scan-face" class="w-16 h-16 text-slate-400"></i>
-        </div>
+<div class="fixed inset-0 flex flex-col">
+  <!-- Header -->
+  <header class="shrink-0 px-8 py-6 flex items-center justify-between border-b border-white/5 bg-slate-900/40 backdrop-blur">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-900/40">
+        <i data-lucide="scan-face" class="w-8 h-8"></i>
       </div>
-      <p id="placeholder-tip" class="text-slate-400 text-xs font-semibold tracking-wide mb-8 bg-slate-900/60 px-4 py-2 rounded-full border border-white/5">กำลังตรวจสอบข้อมูล...</p>
-      <button id="btn-open-camera" onclick="startKioskFlow()" disabled class="w-full py-4 bg-slate-800 border border-slate-700 text-slate-500 rounded-2xl font-black text-sm flex items-center justify-center gap-2 pointer-events-none">
-        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span id="btn-open-label">กำลังจัดเตรียมระบบ...</span>
+      <div>
+        <h1 class="text-2xl font-black tracking-tight">ระบบลงเวลาด้วยใบหน้า</h1>
+        <span id="status-chip" class="inline-flex items-center gap-1.5 mt-1 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20">กำลังเตรียมระบบ...</span>
+      </div>
+    </div>
+    <div class="text-right">
+      <div id="clock" class="text-5xl font-black tabular-nums tracking-tight leading-none">--:--</div>
+      <div id="date" class="text-sm font-semibold text-slate-400 mt-2">—</div>
+    </div>
+  </header>
+
+  <!-- Camera stage -->
+  <main class="relative flex-1 overflow-hidden flex items-center justify-center">
+    <video id="cam" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover transform scale-x-[-1] hidden"></video>
+    <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-slate-950/30 pointer-events-none" id="cam-shade" style="display:none"></div>
+
+    <!-- guide + countdown -->
+    <div id="guide" class="absolute inset-0 hidden items-center justify-center pointer-events-none">
+      <div class="relative rounded-full border-[4px] border-emerald-400/70 ringpulse flex items-center justify-center" style="width:min(70vw,520px);height:min(70vw,520px)">
+        <span id="countdown" class="font-black text-white drop-shadow-[0_4px_18px_rgba(0,0,0,0.8)]" style="font-size:min(34vw,16rem)"></span>
+      </div>
+    </div>
+
+    <!-- start screen -->
+    <div id="screen-start" class="relative z-10 text-center px-10 flex flex-col items-center">
+      <div class="relative w-52 h-52 mb-10 flex items-center justify-center">
+        <div class="absolute inset-0 rounded-full border border-emerald-500/10 animate-ping"></div>
+        <div class="absolute inset-5 rounded-full bg-slate-900/70 border border-white/5 flex items-center justify-center shadow-2xl"><i data-lucide="scan-face" class="w-24 h-24 text-slate-500"></i></div>
+      </div>
+      <p id="start-tip" class="text-slate-400 text-base mb-10">กำลังตรวจสอบระบบ...</p>
+      <button id="btn-start" onclick="startFlow()" disabled class="px-14 py-5 bg-slate-800 border border-slate-700 text-slate-500 rounded-3xl font-black text-xl flex items-center justify-center gap-3 pointer-events-none">
+        <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i> <span id="btn-start-label">กำลังเตรียม...</span>
       </button>
     </div>
 
-    <div id="scanning-badge" class="absolute bottom-36 left-1/2 -translate-x-1/2 hidden">
-      <span class="text-xs font-bold text-white bg-emerald-600/90 px-4 py-2 rounded-full flex items-center gap-2 shadow-lg">
-        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span id="scanning-badge-text">กำลังสแกน...</span>
-      </span>
+    <!-- device block -->
+    <div id="screen-block" class="relative z-20 text-center px-10 hidden flex-col items-center">
+      <div class="w-28 h-28 bg-rose-500/20 border border-rose-500/40 rounded-full flex items-center justify-center mb-6"><i data-lucide="smartphone" class="w-14 h-14 text-rose-400"></i></div>
+      <h3 class="font-black text-2xl">กรุณาเปิดจากมือถือหรือ iPad</h3>
+      <p class="text-slate-400 mt-2">ระบบสแกนรองรับเฉพาะอุปกรณ์พกพา (มือถือ/แท็บเล็ต)</p>
     </div>
 
-    <div id="device-block" class="absolute inset-0 bg-slate-950 flex-col items-center justify-center hidden px-8 z-50 text-center">
-      <div class="w-24 h-24 bg-rose-500/20 rounded-full flex items-center justify-center mb-5 border border-rose-500/40">
-        <i data-lucide="smartphone" class="w-12 h-12 text-rose-400"></i>
+    <!-- hint -->
+    <div id="hint-bar" class="absolute bottom-8 left-1/2 -translate-x-1/2 hidden">
+      <span id="hint-text" class="text-lg font-bold bg-black/55 backdrop-blur px-7 py-3.5 rounded-full">เชิญมองกล้องเพื่อลงเวลา</span>
+    </div>
+  </main>
+
+  <!-- bottom controls -->
+  <footer id="footer" class="shrink-0 px-8 py-5 bg-slate-900/40 border-t border-white/5 backdrop-blur hidden">
+    <div class="flex items-center justify-center gap-3 max-w-xl mx-auto">
+      <div class="flex p-1 bg-slate-800/80 border border-white/5 rounded-2xl flex-1">
+        <button id="btn-mode-auto" onclick="setScanMode('auto')" class="flex-1 py-3 text-sm font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white">โหมดอัตโนมัติ</button>
+        <button id="btn-mode-manual" onclick="openManualSheet()" class="flex-1 py-3 text-sm font-bold rounded-xl text-slate-400">เลือกชื่อก่อน</button>
       </div>
-      <h3 class="text-white font-black text-xl">กรุณาเปิดจากมือถือหรือ iPad</h3>
-      <p class="text-slate-400 text-sm mt-2">ระบบสแกนรองรับเฉพาะโทรศัพท์มือถือหรือแท็บเล็ตเท่านั้น</p>
     </div>
-  </div>
+  </footer>
+</div>
 
-  <div class="absolute bottom-0 w-full bg-slate-950/90 border-t border-white/5 backdrop-blur-md p-6 rounded-t-[2rem] z-30 shadow-[0_-15px_30px_rgba(0,0,0,0.8)]">
-    <div class="flex p-1 bg-slate-900/80 border border-white/5 rounded-2xl">
-      <button id="btn-mode-auto" onclick="setScanMode('auto')" class="flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md transition-all">โหมดอัตโนมัติ</button>
-      <button id="btn-mode-manual" onclick="setScanMode('manual')" class="flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all">เลือกชื่อก่อน</button>
-    </div>
-    <div id="manual-select-area" class="hidden mt-4 relative">
-      <div class="relative">
-        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-        <input type="text" id="manual-user-search" oninput="filterManualUsers()" placeholder="ค้นหาชื่อเพื่อยืนยันตัวตน..." class="w-full pl-9 pr-4 py-3 bg-slate-900/60 border border-white/5 focus:border-emerald-500/50 rounded-2xl text-xs font-bold text-white outline-none">
-      </div>
-      <div id="manual-user-list" class="absolute bottom-full mb-2 w-full max-h-48 bg-slate-900/95 border border-white/10 rounded-2xl overflow-y-auto hidden z-30 shadow-2xl divide-y divide-white/5 custom-scrollbar"></div>
-      <p id="selected-manual-user" class="text-[10px] text-amber-400 font-extrabold mt-3 text-center hidden bg-amber-500/10 border border-amber-500/20 py-2.5 rounded-xl">
-        <i data-lucide="user-check" class="w-3.5 h-3.5 inline mr-1"></i> เตรียมสแกนสำหรับ: <span id="manual-target-name" class="text-white font-black ml-1"></span>
-      </p>
-    </div>
+<!-- result card / sheet -->
+<div id="sheet-backdrop" class="fixed inset-0 bg-black/40 z-40 hidden"></div>
+<div id="sheet" class="sheet down fixed bottom-0 left-0 right-0 z-50 bg-slate-800 rounded-t-[2rem] border-t border-white/10 shadow-2xl max-h-[85vh] flex flex-col">
+  <div class="flex justify-center pt-4"><div class="w-14 h-1.5 bg-white/20 rounded-full"></div></div>
+  <div class="px-8 pt-3 pb-3 flex items-center justify-between">
+    <h3 id="sheet-title" class="font-black text-xl"></h3>
+    <button onclick="closeSheet()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button>
   </div>
-
-  <div id="top3-modal" class="absolute inset-0 bg-slate-950/98 z-50 hidden flex-col items-center justify-center p-6">
-    <div class="w-20 h-20 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-full flex items-center justify-center mb-6 shadow-2xl">
-      <i data-lucide="users-2" class="w-10 h-10"></i>
-    </div>
-    <h3 class="text-lg font-black text-white mb-2">พบใบหน้าที่สอดคล้อง</h3>
-    <p class="text-xs text-slate-400 mb-8 text-center max-w-xs leading-relaxed">ระบบตรวจพบผู้ใช้งานที่คล้ายคลึงกันหลายคน กรุณาเลือกชื่อที่ถูกต้อง</p>
-    <div id="top3-list" class="w-full max-w-sm space-y-3"></div>
-    <button onclick="resumeKiosk()" class="mt-8 w-full max-w-sm py-3.5 border border-white/10 bg-white/5 active:scale-95 text-slate-300 rounded-2xl text-xs font-black">สแกนใหม่อีกครั้ง</button>
-  </div>
+  <div id="sheet-body" class="px-8 pb-10 overflow-y-auto custom-scrollbar"></div>
 </div>
 
 <script>
   const SUPABASE_URL = 'https://lykcbppxbpnkipjhnqyk.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5a2NicHB4YnBua2lwamhucXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwOTUwOTEsImV4cCI6MjA5MjY3MTA5MX0.bstoZYd8f0vC3FKnAr15S5AKuQtiT-wD019rc96e21k';
 
+  const Toast = Swal.mixin({ toast: true, position: 'top', showConfirmButton: false, timer: 2800, timerProgressBar: true });
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
   let IS_TESTING = false;
   let faceDb = [];
   let scanMode = 'auto';
   let manualTargetFaceId = null;
-  let camStream = null, scanning = false, detectBusy = false, lastTryAt = 0;
+  let camStream = null, scanning = false, counting = false;
+
+  // ---- live clock + Thai date ----
+  const TH_DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+  const TH_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  function updateClock() {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0'), ss = String(d.getSeconds()).padStart(2, '0');
+    document.getElementById('clock').innerHTML = `${hh}:${mm}<span class="text-2xl text-slate-400">:${ss}</span>`;
+    document.getElementById('date').textContent = `วัน${TH_DAYS[d.getDay()]}ที่ ${d.getDate()} ${TH_MONTHS[d.getMonth()]} พ.ศ. ${d.getFullYear() + 543}`;
+  }
+  function setChip(txt, color) {
+    const el = document.getElementById('status-chip');
+    const map = { amber: 'bg-amber-500/15 text-amber-300 border-amber-500/20', emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/20', blue: 'bg-blue-500/15 text-blue-300 border-blue-500/20', rose: 'bg-rose-500/15 text-rose-300 border-rose-500/20' };
+    el.className = `inline-flex items-center gap-1.5 mt-1 text-xs font-bold px-3 py-1 rounded-full border ${map[color] || map.amber}`;
+    el.textContent = txt;
+  }
+  function setHint(t) { document.getElementById('hint-text').textContent = t; }
 
   const schoolPolygon = [
     { lat: 12.785238898383794, lng: 99.91365373134613 }, { lat: 12.78599745238914, lng: 99.91338819265366 }, { lat: 12.785939906992754, lng: 99.91311192512512 }, { lat: 12.786957412294308, lng: 99.91276323795319 }, { lat: 12.786894635736306, lng: 99.91252452135086 }, { lat: 12.787373306596795, lng: 99.9123340845108 }, { lat: 12.78749362809111, lng: 99.91252183914185 }, { lat: 12.788314951542185, lng: 99.91226702928543 }, { lat: 12.7884588136551, lng: 99.91263717412949 }, { lat: 12.786667070582686, lng: 99.9133238196373 }, { lat: 12.786936486776709, lng: 99.91428673267365 }, { lat: 12.783787176605763, lng: 99.91540253162384 }, { lat: 12.783400049388725, lng: 99.91421163082123 }, { lat: 12.784216154720637, lng: 99.91395145654678 }, { lat: 12.784025207235116, lng: 99.9134686589241 }, { lat: 12.783999050034073, lng: 99.91337478160858 }, { lat: 12.783821180995126, lng: 99.91340696811676 }, { lat: 12.783758403657343, lng: 99.91309851408005 }, { lat: 12.78491193474759, lng: 99.91268545389175 }
   ];
-
   function isPointInPolygon(point, vs) {
     let x = point.lat, y = point.lng, inside = false;
     for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
@@ -116,159 +146,174 @@
   function isMobileOrTablet() {
     const ua = navigator.userAgent || '';
     const iPadOS13 = navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
-    const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua);
-    return mobileUA || iPadOS13;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|Silk|Kindle|PlayBook/i.test(ua) || iPadOS13;
   }
-  function setStatus(txt, color) {
-    const el = document.getElementById('scanner-status-text');
-    el.textContent = txt;
-    const c = color || 'amber';
-    el.className = `text-[10px] font-black tracking-wide uppercase px-2.5 py-1 bg-${c}-500/10 border border-${c}-500/20 text-${c}-400 rounded-full self-start`;
+
+  function openSheet(title, bodyHtml, withBackdrop) {
+    document.getElementById('sheet-title').textContent = title;
+    document.getElementById('sheet-body').innerHTML = bodyHtml;
+    document.getElementById('sheet-backdrop').classList.toggle('hidden', !withBackdrop);
+    document.getElementById('sheet').classList.remove('down');
+    if (window.lucide) lucide.createIcons();
+  }
+  function closeSheet() {
+    document.getElementById('sheet').classList.add('down');
+    document.getElementById('sheet-backdrop').classList.add('hidden');
   }
 
   async function loadFaceScanConfig() {
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/system_configs?config_key=eq.face_scan_testing_mode&select=config_value`, {
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-      });
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/system_configs?config_key=eq.face_scan_testing_mode&select=config_value`, { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
       if (res.ok) { const d = await res.json(); if (d.length) IS_TESTING = (String(d[0].config_value).trim().toLowerCase() === 'true'); }
     } catch (e) { console.warn(e); }
   }
 
-  function startKioskFlow() {
-    if (!navigator.geolocation) { if (IS_TESTING) return loadAndStart(); return showErrorReload("อุปกรณ์ของคุณไม่รองรับ GPS"); }
-    setStatus("กำลังตรวจสอบพื้นที่ (GPS)...", 'amber');
-    document.getElementById('placeholder-tip').textContent = "กำลังตรวจสอบตำแหน่งพื้นที่ (GPS)...";
+  function startFlow() {
+    document.getElementById('screen-start').classList.add('hidden');
+    if (!navigator.geolocation) { if (IS_TESTING) return loadAndStart(); return errReload("อุปกรณ์ของคุณไม่รองรับ GPS"); }
+    setChip("ตรวจสอบพื้นที่ (GPS)...", 'amber');
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const userLoc = { lat: position.coords.latitude, lng: position.coords.longitude };
-        if (!IS_TESTING && !isPointInPolygon(userLoc, schoolPolygon)) return showErrorReload("คุณอยู่นอกพื้นที่โรงเรียน ไม่สามารถลงเวลาได้");
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (!IS_TESTING && !isPointInPolygon(loc, schoolPolygon)) return errReload("เครื่องนี้อยู่นอกพื้นที่โรงเรียน");
         loadAndStart();
       },
-      () => { if (IS_TESTING) loadAndStart(); else showErrorReload("กรุณาเปิดการระบุตำแหน่ง (GPS) และอนุญาตให้เข้าถึง"); },
+      () => { if (IS_TESTING) loadAndStart(); else errReload("กรุณาอนุญาตการเข้าถึงตำแหน่ง (GPS)"); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }
-  function showErrorReload(msg) { Swal.fire({ icon: 'error', title: 'ไม่สามารถทำรายการได้', text: msg, confirmButtonText: 'ลองใหม่' }).then(() => location.reload()); }
+  function errReload(msg) { Swal.fire({ icon: 'error', title: 'ไม่สามารถทำรายการได้', text: msg, confirmButtonText: 'ลองใหม่' }).then(() => location.reload()); }
 
   async function loadAndStart() {
     try {
-      setStatus("กำลังโหลดข้อมูลใบหน้า...", 'blue');
-      document.getElementById('placeholder-tip').textContent = "กำลังโหลด AI และฐานข้อมูลพนักงาน...";
-      if (!window.faceapi.nets.ssdMobilenetv1.isLoaded) {
-        const MODEL_URL = 'https:' + '//cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-        await Promise.all([
-          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-        ]);
-      }
+      setChip("กำลังโหลดข้อมูล...", 'blue');
       if (faceDb.length === 0) {
-        const res = await fetch(SUPABASE_URL + '/rest/v1/users?select=id,first_name,last_name,face_scan_id,data_face_id&not.data_face_id.is.null', {
-          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-        });
+        const res = await fetch(SUPABASE_URL + '/rest/v1/users?select=id,first_name,last_name,face_scan_id,data_face_id&not.data_face_id.is.null', { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } });
         if (!res.ok) throw new Error("โหลดข้อมูลไม่ได้");
         const users = await res.json();
         faceDb = users.map(u => {
-          let rawData = u.data_face_id;
-          if (typeof rawData === 'string') { try { rawData = JSON.parse(rawData); } catch (e) {} }
-          if (rawData && typeof rawData === 'object' && !Array.isArray(rawData)) rawData = Object.values(rawData);
-          let d = new Float32Array(128);
-          if (Array.isArray(rawData) && rawData.length === 128) d = new Float32Array(rawData);
+          let r = u.data_face_id; if (typeof r === 'string') { try { r = JSON.parse(r); } catch (e) {} }
+          if (r && typeof r === 'object' && !Array.isArray(r)) r = Object.values(r);
+          let d = new Float32Array(128); if (Array.isArray(r) && r.length === 128) d = new Float32Array(r);
           return { id: u.id, face_scan_id: u.face_scan_id, name: `${u.first_name} ${u.last_name}`, descriptor: d };
         }).filter(u => u.descriptor[0] !== 0 || u.descriptor[1] !== 0);
       }
       await beginCamera();
-    } catch (e) { console.error(e); showErrorReload("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล"); }
+    } catch (e) { console.error(e); errReload("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล"); }
   }
 
   async function beginCamera() {
     try {
-      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 } }, audio: false });
-      const video = document.getElementById('cam');
-      video.srcObject = camStream;
-      await video.play();
-      document.getElementById('camera-placeholder').classList.add('hidden');
-      video.classList.remove('hidden');
-      document.getElementById('cam-guide').classList.remove('hidden');
-      document.getElementById('cam-guide').classList.add('flex');
-      document.getElementById('scanning-badge').classList.remove('hidden');
-      setStatus("พร้อมสแกน — เชิญหน้ากล้อง", 'emerald');
-      scanning = true;
-      detectLoop();
-    } catch (e) {
-      console.error(e);
-      showErrorReload("เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์");
-    }
+      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 } }, audio: false });
+      const v = document.getElementById('cam'); v.srcObject = camStream; await v.play();
+      v.classList.remove('hidden');
+      document.getElementById('cam-shade').style.display = 'block';
+      document.getElementById('guide').classList.remove('hidden'); document.getElementById('guide').classList.add('flex');
+      document.getElementById('hint-bar').classList.remove('hidden');
+      document.getElementById('footer').classList.remove('hidden');
+      setChip("พร้อมสแกน", 'emerald'); setHint("เชิญมองกล้องเพื่อลงเวลา");
+      scanning = true; counting = false; loop();
+    } catch (e) { console.error(e); errReload("เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์"); }
   }
 
-  function videoToCanvas() {
-    const video = document.getElementById('cam');
-    if (!video.videoWidth) return null;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const MAX_WIDTH = 600;
-    let s = video.videoWidth > MAX_WIDTH ? MAX_WIDTH / video.videoWidth : 1;
-    canvas.width = video.videoWidth * s;
-    canvas.height = video.videoHeight * s;
+  function grab() {
+    const v = document.getElementById('cam'); if (!v.videoWidth) return null;
+    const c = document.createElement('canvas'); const ctx = c.getContext('2d');
+    let s = v.videoWidth > 640 ? 640 / v.videoWidth : 1; c.width = v.videoWidth * s; c.height = v.videoHeight * s;
     if (ctx.filter !== undefined) ctx.filter = 'brightness(1.12) contrast(1.08)';
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    if (ctx.filter !== undefined) ctx.filter = 'none';
-    return canvas;
+    ctx.drawImage(v, 0, 0, c.width, c.height); if (ctx.filter !== undefined) ctx.filter = 'none';
+    return c;
+  }
+  async function detectDescriptor() {
+    const c = grab(); if (!c) return null;
+    const det = await faceapi.detectSingleFace(c, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 })).withFaceLandmarks().withFaceDescriptor();
+    return (det && det.detection.score >= 0.5) ? det.descriptor : null;
   }
 
-  async function detectLoop() {
-    if (!scanning) return;
-    if (!detectBusy && (Date.now() - lastTryAt > 1200)) {
-      detectBusy = true;
-      try {
-        const canvas = videoToCanvas();
-        if (canvas) {
-          const det = await faceapi.detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 })).withFaceLandmarks().withFaceDescriptor();
-          if (det && det.detection.score >= 0.5) { lastTryAt = Date.now(); analyzeFaceDescriptor(det.descriptor); }
-        }
-      } catch (e) { console.warn(e); }
-      detectBusy = false;
+  async function loop() {
+    if (!scanning || counting) return;
+    const d = await detectDescriptor();
+    if (d) { startCountdown(); return; }
+    setHint("เชิญมองกล้องเพื่อลงเวลา");
+    if (scanning && !counting) setTimeout(loop, 450);
+  }
+  async function startCountdown() {
+    counting = true; setChip("กำลังจับใบหน้า", 'emerald');
+    let last = null;
+    for (let n = 3; n >= 1; n--) {
+      const cd = document.getElementById('countdown');
+      cd.textContent = n; cd.classList.remove('pop'); void cd.offsetWidth; cd.classList.add('pop');
+      setHint("นิ่งไว้...");
+      await sleep(750);
+      const d = await detectDescriptor();
+      if (!d) { document.getElementById('countdown').textContent = ''; counting = false; setChip("พร้อมสแกน", 'emerald'); setHint("เชิญมองกล้องเพื่อลงเวลา"); if (scanning) loop(); return; }
+      last = d;
     }
-    if (scanning) setTimeout(detectLoop, 600);
+    document.getElementById('countdown').textContent = '';
+    counting = false; scanning = false; setHint("กำลังตรวจสอบ...");
+    evaluate(last);
   }
 
-  function analyzeFaceDescriptor(descriptor) {
+  function evaluate(descriptor) {
     if (scanMode === 'manual' && manualTargetFaceId) {
       const t = faceDb.find(u => u.face_scan_id === manualTargetFaceId);
-      if (t) {
-        const distance = faceapi.euclideanDistance(descriptor, t.descriptor);
-        if (distance <= 0.45) { scanning = false; handleSuccessScan(t); }
-        else setStatus("ใบหน้าไม่ตรงกับชื่อที่เลือก", 'rose');
-      }
-    } else {
-      let matches = faceDb.map(u => ({ ...u, distance: faceapi.euclideanDistance(descriptor, u.descriptor) }));
-      matches.sort((a, b) => a.distance - b.distance);
-      const best = matches[0];
-      if (best && best.distance <= 0.35) { scanning = false; handleSuccessScan(best); }
-      else if (best && best.distance <= 0.5) { scanning = false; showTop3Selection(matches.filter(m => m.distance <= 0.5).slice(0, 3)); }
-      // ถ้าไม่เข้าเกณฑ์ → ปล่อยลูปต่อเงียบ ๆ (ไม่เด้ง alert)
+      if (t && faceapi.euclideanDistance(descriptor, t.descriptor) <= 0.45) return handleSuccess(t);
+      Toast.fire({ icon: 'error', title: 'ใบหน้าไม่ตรงกับชื่อที่เลือก' }); return resume();
     }
+    let matches = faceDb.map(u => ({ ...u, distance: faceapi.euclideanDistance(descriptor, u.descriptor) })).sort((a, b) => a.distance - b.distance);
+    const best = matches[0];
+    if (best && best.distance <= 0.35) return handleSuccess(best);
+    if (best && best.distance <= 0.5) return showTop3(matches.filter(m => m.distance <= 0.5).slice(0, 3));
+    Toast.fire({ icon: 'warning', title: 'ไม่พบข้อมูลใบหน้า ลองใหม่อีกครั้ง' });
+    resume();
+  }
+  function resume() {
+    closeSheet();
+    manualTargetFaceId = null;
+    document.getElementById('btn-mode-auto').classList.add('bg-gradient-to-r', 'from-emerald-500', 'to-teal-600', 'text-white');
+    document.getElementById('btn-mode-auto').classList.remove('text-slate-400');
+    document.getElementById('btn-mode-manual').classList.add('text-slate-400');
+    scanMode = 'auto';
+    scanning = true; counting = false; setChip("พร้อมสแกน", 'emerald'); setHint("เชิญมองกล้องเพื่อลงเวลา"); loop();
   }
 
-  async function handleSuccessScan(userObj) {
-    scanning = false;
-    document.getElementById('scanning-badge').classList.add('hidden');
-    setStatus("กำลังลงบันทึกเวลา...", 'emerald');
+  function showTop3(list) {
+    const body = list.map(u => `
+      <button onclick="pickUser('${u.face_scan_id}')" class="w-full bg-white/5 hover:bg-white/10 border border-white/10 p-5 rounded-2xl flex items-center gap-4 mb-3 text-left active:scale-[0.98]">
+        <div class="w-12 h-12 bg-indigo-500/20 text-indigo-300 rounded-full flex items-center justify-center font-black text-lg shrink-0">${u.name.substring(0, 1)}</div>
+        <div class="flex-1"><p class="font-bold text-lg">${u.name}</p><p class="text-emerald-400 text-sm font-semibold">ความใกล้เคียง ${Math.round((1 - u.distance) * 100)}%</p></div>
+        <i data-lucide="chevron-right" class="w-5 h-5 text-slate-500"></i>
+      </button>`).join('') + `<button onclick="resume()" class="w-full py-4 mt-2 border border-white/10 rounded-2xl font-bold text-slate-300">สแกนใหม่</button>`;
+    openSheet('เลือกชื่อที่ถูกต้อง', body, true);
+  }
+  function pickUser(faceScanId) { closeSheet(); handleSuccess(faceDb.find(u => u.face_scan_id === faceScanId)); }
 
-    const now = new Date();
-    const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
-    const scanDate = localNow.toISOString().split('T')[0];
-    const scanTime = localNow.toISOString().split('T')[1].substring(0, 8);
+  function openManualSheet() {
+    scanMode = 'manual';
+    document.getElementById('btn-mode-manual').classList.remove('text-slate-400');
+    const opts = faceDb.slice().sort((a, b) => a.name.localeCompare(b.name, 'th'));
+    openSheet('เลือกชื่อของคุณ', `
+      <input id="m-search" oninput="filterManual()" placeholder="ค้นหาชื่อ..." class="w-full mb-3 px-5 py-4 bg-slate-900 border border-white/10 rounded-2xl text-base outline-none focus:border-emerald-500">
+      <div id="m-list" class="space-y-2 max-h-[55vh] overflow-y-auto custom-scrollbar"></div>`, true);
+    window._mOpts = opts; renderManual('');
+  }
+  function renderManual(kw) {
+    const list = (window._mOpts || []).filter(u => !kw || u.name.toLowerCase().includes(kw.toLowerCase()));
+    document.getElementById('m-list').innerHTML = list.length ? list.map(u => `
+      <div onclick="chooseManual('${u.face_scan_id}','${u.name.replace(/'/g, "\\'")}')" class="px-5 py-4 bg-white/5 hover:bg-white/10 rounded-xl text-base font-bold cursor-pointer">${u.name}</div>`).join('')
+      : `<p class="text-center text-slate-500 py-8">ไม่พบชื่อ</p>`;
+  }
+  function filterManual() { renderManual(document.getElementById('m-search').value); }
+  function chooseManual(id, name) { manualTargetFaceId = id; closeSheet(); Toast.fire({ icon: 'info', title: 'เลือก: ' + name + ' — เชิญมองกล้อง' }); }
 
+  async function handleSuccess(userObj) {
+    setChip("กำลังลงเวลา...", 'emerald'); setHint("กำลังบันทึก...");
+    const now = new Date(); const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    const scanDate = localNow.toISOString().split('T')[0]; const scanTime = localNow.toISOString().split('T')[1].substring(0, 8);
     const isGuard = userObj.face_scan_id && userObj.face_scan_id.startsWith('9');
     let scanAction = 'none';
     if (isGuard) scanAction = 'any';
-    else {
-      if (scanTime >= '04:00:00' && scanTime <= '14:00:00') scanAction = 'in';
-      else if (scanTime >= '14:00:01' && scanTime <= '23:59:59') scanAction = 'out';
-      else { if (IS_TESTING) scanAction = 'in'; else { Swal.fire({ icon: 'warning', title: 'ไม่อยู่ในช่วงเวลาสแกน', text: 'อนุญาตสแกนเข้า (04:00-14:00) และออก (14:01-23:59) เท่านั้น' }).then(resumeKiosk); return; } }
-    }
+    else { if (scanTime >= '04:00:00' && scanTime <= '14:00:00') scanAction = 'in'; else if (scanTime >= '14:00:01' && scanTime <= '23:59:59') scanAction = 'out'; else { if (IS_TESTING) scanAction = 'in'; else { Toast.fire({ icon: 'warning', title: 'ไม่อยู่ในช่วงเวลาสแกน' }); return resume(); } } }
 
     try {
       const headers = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' };
@@ -281,161 +326,98 @@
         fetch(`${SUPABASE_URL}/rest/v1/special_work_periods?start_date=lte.${scanDate}&end_date=gte.${scanDate}`, { headers })
       ]);
       const [dailyRecs, refLeaves, roundSets, holidays, dormHols, specialPeriods] = await Promise.all([
-        rawDaily.ok ? rawDaily.json() : [], rawRef.ok ? rawRef.json() : [],
-        rawRound.ok ? rawRound.json() : [], rawHol.ok ? rawHol.json() : [],
-        rawDormHol.ok ? rawDormHol.json() : [], rawSpecial.ok ? rawSpecial.json() : []
+        rawDaily.ok ? rawDaily.json() : [], rawRef.ok ? rawRef.json() : [], rawRound.ok ? rawRound.json() : [], rawHol.ok ? rawHol.json() : [], rawDormHol.ok ? rawDormHol.json() : [], rawSpecial.ok ? rawSpecial.json() : []
       ]);
-
-      const refData = refLeaves.length > 0 ? refLeaves[0] : null;
-      const dailyData = dailyRecs.length > 0 ? dailyRecs[0] : null;
-      const defaultLate = roundSets.length > 0 ? (roundSets[0].late_time || '08:00:00') : '08:00:00';
-      const defaultOff = roundSets.length > 0 ? (roundSets[0].off_work_time || '16:30:00') : '16:30:00';
-      const sp = specialPeriods.length > 0 ? specialPeriods[0] : null;
-      const LATE_TIME = sp ? sp.late_time : defaultLate;
-      const OFF_WORK_TIME = sp ? sp.off_work_time : defaultOff;
-
+      const refData = refLeaves[0] || null; const dailyData = dailyRecs[0] || null;
+      const defaultLate = roundSets.length ? (roundSets[0].late_time || '08:00:00') : '08:00:00';
+      const defaultOff = roundSets.length ? (roundSets[0].off_work_time || '16:30:00') : '16:30:00';
+      const sp = specialPeriods[0] || null;
+      const LATE_TIME = sp ? sp.late_time : defaultLate; const OFF_WORK_TIME = sp ? sp.off_work_time : defaultOff;
       const dObj = new Date(scanDate + "T00:00:00");
       const isPublicHol = (dObj.getDay() === 0 || dObj.getDay() === 6) || holidays.length > 0;
-      const isDormHol = dormHols.length > 0;
-      const isAnyHoliday = isPublicHol || isDormHol;
+      const isDormHol = dormHols.length > 0; const isAnyHoliday = isPublicHol || isDormHol;
       const holidayRemarkText = isDormHol && !isPublicHol ? 'วันหยุดครูหอพัก' : 'วันหยุด';
-
-      let timeIn = dailyData ? dailyData.time_in : null;
-      let timeOut = dailyData ? dailyData.time_out : null;
-      if (isGuard) {
-        if (!timeIn) { timeIn = scanTime; timeOut = scanTime; }
-        else { timeIn = timeIn < scanTime ? timeIn : scanTime; timeOut = timeOut > scanTime ? timeOut : scanTime; }
-      } else {
-        if (scanAction === 'in') timeIn = timeIn ? (timeIn < scanTime ? timeIn : scanTime) : scanTime;
-        else if (scanAction === 'out') { timeOut = timeOut ? (timeOut > scanTime ? timeOut : scanTime) : scanTime; if (!timeIn) timeIn = scanTime; }
-      }
-
-      const tInShort = timeIn ? timeIn.substring(0, 5) : '-';
-      const tOutShort = timeOut ? timeOut.substring(0, 5) : '-';
-      let recordType = isAnyHoliday ? 'holiday' : 'present';
-      let subType = 'no_data';
-      let remark = '-';
-      const isLate = timeIn > LATE_TIME;
-      const isLeaveEarly = (timeOut < OFF_WORK_TIME) && (timeIn !== timeOut);
-      const isSingleScan = (timeIn === timeOut || !timeOut);
-
+      let timeIn = dailyData ? dailyData.time_in : null; let timeOut = dailyData ? dailyData.time_out : null;
+      if (isGuard) { if (!timeIn) { timeIn = scanTime; timeOut = scanTime; } else { timeIn = timeIn < scanTime ? timeIn : scanTime; timeOut = timeOut > scanTime ? timeOut : scanTime; } }
+      else { if (scanAction === 'in') timeIn = timeIn ? (timeIn < scanTime ? timeIn : scanTime) : scanTime; else if (scanAction === 'out') { timeOut = timeOut ? (timeOut > scanTime ? timeOut : scanTime) : scanTime; if (!timeIn) timeIn = scanTime; } }
+      const tIn = timeIn ? timeIn.substring(0, 5) : '-'; const tOut = timeOut ? timeOut.substring(0, 5) : '-';
+      let recordType = isAnyHoliday ? 'holiday' : 'present'; let subType = 'no_data'; let remark = '-';
+      const isLate = timeIn > LATE_TIME; const isLeaveEarly = (timeOut < OFF_WORK_TIME) && (timeIn !== timeOut); const isSingleScan = (timeIn === timeOut || !timeOut);
       if (refData) {
-        if (refData.record_type === 'out') {
-          recordType = 'present';
-          if (isLate) { subType = 'late'; remark = `ออกนอกสถานศึกษา (มาสาย ${tInShort})`; }
-          else { subType = 'normal'; remark = `มาทำงานปกติ (ออกนอกฯ)`; }
-        } else { recordType = refData.record_type; subType = refData.sub_type || 'normal'; remark = refData.remark || 'มีเอกสารอ้างอิง'; }
+        if (refData.record_type === 'out') { recordType = 'present'; if (isLate) { subType = 'late'; remark = `ออกนอกสถานศึกษา (มาสาย ${tIn})`; } else { subType = 'normal'; remark = `มาทำงานปกติ (ออกนอกฯ)`; } }
+        else { recordType = refData.record_type; subType = refData.sub_type || 'normal'; remark = refData.remark || 'มีเอกสารอ้างอิง'; }
       } else {
         if (isAnyHoliday) { subType = 'work_on_holiday'; remark = `มาทำวันหยุด (${holidayRemarkText})`; }
-        else if (isSingleScan && scanAction === 'in') { subType = isLate ? 'late' : 'normal'; remark = isLate ? `มาสาย (เข้า: ${tInShort})` : `มาทำงานปกติ (เข้า: ${tInShort})`; }
-        else if (isLate && isLeaveEarly) { subType = 'late_and_early'; remark = `เข้า: ${tInShort} | ออก: ${tOutShort}`; }
-        else if (isLate) { subType = 'late'; remark = `เข้า: ${tInShort} | ออก: ${tOutShort}`; }
-        else if (isLeaveEarly) { subType = 'leave_early'; remark = `เข้า: ${tInShort} | ออก: ${tOutShort}`; }
-        else { subType = 'normal'; remark = `เข้า: ${tInShort} | ออก: ${tOutShort}`; }
+        else if (isSingleScan && scanAction === 'in') { subType = isLate ? 'late' : 'normal'; remark = isLate ? `มาสาย (เข้า: ${tIn})` : `มาทำงานปกติ (เข้า: ${tIn})`; }
+        else if (isLate && isLeaveEarly) { subType = 'late_and_early'; remark = `เข้า: ${tIn} | ออก: ${tOut}`; }
+        else if (isLate) { subType = 'late'; remark = `เข้า: ${tIn} | ออก: ${tOut}`; }
+        else if (isLeaveEarly) { subType = 'leave_early'; remark = `เข้า: ${tIn} | ออก: ${tOut}`; }
+        else { subType = 'normal'; remark = `เข้า: ${tIn} | ออก: ${tOut}`; }
       }
-      if (isGuard && isSingleScan) { recordType = 'present'; subType = 'evening_shift'; remark = `เข้างานช่วงเย็น [เวลา: ${tInShort}]`; }
-
-      const payloadLog = { machine_id: 'GitHubPages_Kiosk', face_scan_id: userObj.face_scan_id, scan_date: scanDate, scan_time: scanTime, original_log: `Live Face Match (${scanAction})`, status: 'processed' };
+      if (isGuard && isSingleScan) { recordType = 'present'; subType = 'evening_shift'; remark = `เข้างานช่วงเย็น [เวลา: ${tIn}]`; }
+      const payloadLog = { machine_id: 'GitHubPages_Kiosk', face_scan_id: userObj.face_scan_id, scan_date: scanDate, scan_time: scanTime, original_log: `Live Match (${scanAction})`, status: 'processed' };
       const payloadDaily = { user_id: userObj.id, attendance_date: scanDate, time_in: timeIn, time_out: timeOut, record_type: recordType, sub_type: subType, remark: remark };
       const urlDaily = dailyData ? `${SUPABASE_URL}/rest/v1/daily_attendance_records?id=eq.${dailyData.id}` : `${SUPABASE_URL}/rest/v1/daily_attendance_records`;
-
       await Promise.all([
         fetch(`${SUPABASE_URL}/rest/v1/raw_attendance_logs`, { method: 'POST', headers, body: JSON.stringify(payloadLog) }),
         fetch(urlDaily, { method: dailyData ? 'PATCH' : 'POST', headers, body: JSON.stringify(payloadDaily) })
       ]);
-
-      let alertIcon = 'success';
-      if (subType.includes('late')) alertIcon = 'warning';
-      Swal.fire({ icon: alertIcon, title: 'ลงเวลาสำเร็จ', text: `${userObj.name}\n${remark}`, timer: 2500, timerProgressBar: true, showConfirmButton: true, confirmButtonText: 'ตกลง', confirmButtonColor: '#10b981' }).then(resumeKiosk);
+      showResultCard(userObj.name, tIn, tOut, remark, subType.includes('late'));
     } catch (e) {
       console.error(e);
-      Swal.fire({ icon: 'error', title: 'การบันทึกข้อมูลล้มเหลว', text: 'สแกนหน้าผ่านแล้ว แต่ไม่สามารถบันทึกข้อมูลลงระบบได้' }).then(resumeKiosk);
+      Toast.fire({ icon: 'error', title: 'บันทึกข้อมูลล้มเหลว' });
+      resume();
     }
   }
 
-  // กลับไปสแกนคนต่อไป (กล้องยังเปิดอยู่)
-  function resumeKiosk() {
-    document.getElementById('top3-modal').classList.add('hidden');
-    manualTargetFaceId = null;
-    document.getElementById('selected-manual-user').classList.add('hidden');
-    document.getElementById('manual-user-search').value = '';
-    if (camStream) {
-      document.getElementById('scanning-badge').classList.remove('hidden');
-      setStatus("พร้อมสแกน — เชิญหน้ากล้อง", 'emerald');
-      scanning = true; detectBusy = false; lastTryAt = 0;
-      detectLoop();
-    }
-  }
-
-  function showTop3Selection(top3List) {
-    const modal = document.getElementById('top3-modal');
-    document.getElementById('top3-list').innerHTML = top3List.map(u => `
-      <button onclick="selectTop3User('${u.face_scan_id}')" class="w-full bg-white/5 border border-white/10 hover:border-white/20 p-4 rounded-2xl flex items-center gap-4 transition-all text-left group active:scale-[0.98]">
-        <div class="w-10 h-10 bg-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white rounded-full flex shrink-0 items-center justify-center font-bold">${u.name.substring(0, 1)}</div>
-        <div class="flex-1"><p class="text-white font-extrabold text-sm">${u.name}</p><p class="text-emerald-400 text-[10px] font-semibold mt-0.5">ความใกล้เคียง: ${Math.round((1 - u.distance) * 100 || 85)}%</p></div>
-        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
-      </button>`).join('');
-    modal.classList.remove('hidden'); modal.classList.add('flex');
-    if (window.lucide) lucide.createIcons();
-  }
-  function selectTop3User(faceScanId) {
-    const user = faceDb.find(u => u.face_scan_id === faceScanId);
-    document.getElementById('top3-modal').classList.add('hidden');
-    handleSuccessScan(user);
+  function showResultCard(name, tIn, tOut, remark, late) {
+    const accent = late ? 'amber' : 'emerald';
+    openSheet('ลงเวลาสำเร็จ', `
+      <div class="text-center py-2">
+        <div class="w-24 h-24 mx-auto bg-${accent}-500/20 border border-${accent}-500/40 rounded-full flex items-center justify-center mb-5 pop"><i data-lucide="${late ? 'alarm-clock' : 'check'}" class="w-12 h-12 text-${accent}-400"></i></div>
+        <p class="font-black text-3xl">${name}</p>
+        <p class="text-slate-300 text-lg mt-2">${remark}</p>
+        <div class="flex justify-center gap-10 mt-6">
+          <div><p class="text-slate-500 text-sm">เวลาเข้า</p><p class="text-2xl font-black text-emerald-400">${tIn}</p></div>
+          <div><p class="text-slate-500 text-sm">เวลาออก</p><p class="text-2xl font-black text-sky-400">${tOut}</p></div>
+        </div>
+      </div>`, false);
+    // auto-resume kiosk
+    setTimeout(() => { closeSheet(); resume(); }, 3800);
   }
 
   function setScanMode(mode) {
     scanMode = mode;
-    const btnAuto = document.getElementById('btn-mode-auto');
-    const btnManual = document.getElementById('btn-mode-manual');
-    const manualArea = document.getElementById('manual-select-area');
+    const a = document.getElementById('btn-mode-auto'), m = document.getElementById('btn-mode-manual');
     if (mode === 'auto') {
-      btnAuto.className = "flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md transition-all";
-      btnManual.className = "flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all";
-      manualArea.classList.add('hidden'); manualTargetFaceId = null;
-      document.getElementById('selected-manual-user').classList.add('hidden');
-    } else {
-      btnManual.className = "flex-1 py-2.5 text-xs font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md transition-all";
-      btnAuto.className = "flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 hover:text-white transition-all";
-      manualArea.classList.remove('hidden'); renderManualUserList();
+      a.className = "flex-1 py-3 text-sm font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white";
+      m.className = "flex-1 py-3 text-sm font-bold rounded-xl text-slate-400";
+      manualTargetFaceId = null;
     }
-  }
-  function renderManualUserList(searchText = '') {
-    const listDiv = document.getElementById('manual-user-list');
-    let filtered = faceDb;
-    if (searchText) filtered = faceDb.filter(u => u.name.toLowerCase().includes(searchText.toLowerCase()));
-    if (filtered.length === 0) listDiv.innerHTML = `<div class="p-4 text-xs text-slate-500 text-center font-bold">ไม่พบชื่อที่ตรงกัน</div>`;
-    else listDiv.innerHTML = filtered.map(u => `
-      <div onclick="selectManualTarget('${u.face_scan_id}', '${u.name.replace(/'/g, "\\'")}')" class="p-3.5 text-xs text-slate-300 hover:bg-white/5 hover:text-white cursor-pointer flex items-center justify-between">
-        <span class="font-bold">${u.name}</span><span class="text-[9px] font-mono text-slate-500">ID: ${u.face_scan_id}</span>
-      </div>`).join('');
-    listDiv.classList.remove('hidden');
-  }
-  function filterManualUsers() { renderManualUserList(document.getElementById('manual-user-search').value); }
-  function selectManualTarget(faceScanId, name) {
-    manualTargetFaceId = faceScanId;
-    document.getElementById('manual-user-list').classList.add('hidden');
-    document.getElementById('manual-user-search').value = '';
-    document.getElementById('manual-target-name').textContent = name;
-    document.getElementById('selected-manual-user').classList.remove('hidden');
-    if (window.lucide) lucide.createIcons();
   }
 
   async function init() {
     if (window.lucide) lucide.createIcons();
+    updateClock(); setInterval(updateClock, 1000);
     await loadFaceScanConfig();
     if (!IS_TESTING && !isMobileOrTablet()) {
-      document.getElementById('camera-placeholder').classList.add('hidden');
-      const b = document.getElementById('device-block'); b.classList.remove('hidden'); b.classList.add('flex');
-      setStatus("อุปกรณ์ไม่รองรับ", 'rose');
+      document.getElementById('screen-start').classList.add('hidden');
+      document.getElementById('screen-block').classList.remove('hidden'); document.getElementById('screen-block').classList.add('flex');
+      setChip("อุปกรณ์ไม่รองรับ", 'rose');
       return;
     }
-    const btn = document.getElementById('btn-open-camera');
-    btn.disabled = false;
-    btn.className = "w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white rounded-2xl font-black text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer pointer-events-auto";
-    btn.innerHTML = `<i data-lucide="camera" class="w-4 h-4"></i> <span>เริ่มระบบสแกน</span>`;
-    document.getElementById('placeholder-tip').textContent = "กดเริ่มเพื่อเปิดกล้องและเริ่มสแกนใบหน้า";
-    setStatus("พร้อมเริ่ม", 'emerald');
+    try {
+      if (!window.faceapi.nets.ssdMobilenetv1.isLoaded) {
+        const M = 'https:' + '//cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+        await Promise.all([faceapi.nets.ssdMobilenetv1.loadFromUri(M), faceapi.nets.faceLandmark68Net.loadFromUri(M), faceapi.nets.faceRecognitionNet.loadFromUri(M)]);
+      }
+    } catch (e) { console.warn(e); }
+    const b = document.getElementById('btn-start');
+    b.disabled = false;
+    b.className = "px-14 py-5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white rounded-3xl font-black text-xl flex items-center justify-center gap-3 cursor-pointer shadow-lg shadow-emerald-900/40";
+    b.innerHTML = '<i data-lucide="camera" class="w-6 h-6"></i> <span>เริ่มระบบสแกน</span>';
+    document.getElementById('start-tip').textContent = "กดเริ่มเพื่อเปิดกล้อง — ยืนหน้ากล้องเพื่อลงเวลาอัตโนมัติ";
+    setChip("พร้อมเริ่ม", 'emerald');
     if (window.lucide) lucide.createIcons();
   }
   window.addEventListener('load', init);
